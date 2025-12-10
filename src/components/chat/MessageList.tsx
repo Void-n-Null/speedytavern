@@ -34,12 +34,16 @@ export function MessageList() {
   const activePath = getActivePath();
 
   // Compute sibling info for each node
+  // IMPORTANT: Use node_ids from path, but look up FRESH nodes from the Map
+  // This ensures we get the latest content after edits/streaming
   const pathInfo = useMemo(() => {
-    return activePath.nodes.map((node, index) => {
+    return activePath.node_ids.map((nodeId, index) => {
+      const node = nodes.get(nodeId)!;
       const parent = node.parent_id ? nodes.get(node.parent_id) : null;
       const siblingCount = parent?.child_ids.length ?? 1;
       const currentSiblingIndex = parent?.child_ids.indexOf(node.id) ?? 0;
-      const prevNode = index > 0 ? activePath.nodes[index - 1] : null;
+      const prevNodeId = index > 0 ? activePath.node_ids[index - 1] : null;
+      const prevNode = prevNodeId ? nodes.get(prevNodeId) : null;
       const isFirstInGroup = !prevNode || prevNode.speaker_id !== node.speaker_id;
       
       return {
@@ -50,7 +54,7 @@ export function MessageList() {
         isFirstInGroup,
       };
     });
-  }, [activePath.nodes, nodes, speakers]);
+  }, [activePath.node_ids, nodes, speakers]);
 
   // Stable callbacks
   const handleEdit = useCallback((nodeId: string, content: string) => {

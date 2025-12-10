@@ -6,11 +6,16 @@ import './components/chat/chat.css';
 import { App } from './App';
 
 // Enable react-scan in development
-if (import.meta.env.DEV) {
+// Disabled on Firefox due to severe performance issues (github.com/aidenybai/react-scan/issues/400)
+// Set VITE_DISABLE_SCAN=1 to disable manually
+const isFirefox = navigator.userAgent.includes('Firefox');
+if (import.meta.env.DEV && !import.meta.env.VITE_DISABLE_SCAN && !isFirefox) {
   scan({
     enabled: true,
-    log: true, // Log renders to console
+    log: true,
   });
+} else if (isFirefox && import.meta.env.DEV) {
+  console.log('[react-scan] Disabled on Firefox due to performance issues');
 }
 
 /**
