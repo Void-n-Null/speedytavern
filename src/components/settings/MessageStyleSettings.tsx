@@ -18,9 +18,7 @@ import type {
   ActionsPosition,
   ActionsStyle,
   ActionsSize,
-  BranchVisibility,
-  BranchPosition,
-  BranchStyle,
+  BranchChevronSize,
   TimestampFormat,
   TimestampDetail,
   TimestampPosition,
@@ -546,42 +544,14 @@ export function MessageStyleSettings() {
 
       <div>
         <label>
-          Visibility:
+          Chevron Size:
           <select
-            value={config.branch.visibility}
-            onChange={(e) => setBranch({ visibility: e.target.value as BranchVisibility })}
+            value={config.branch.chevronSize}
+            onChange={(e) => setBranch({ chevronSize: e.target.value as BranchChevronSize })}
           >
-            <option value="always">Always</option>
-            <option value="hover">Show on Hover</option>
-            <option value="when-multiple">Only When Multiple Branches</option>
-          </select>
-        </label>
-      </div>
-
-      <div>
-        <label>
-          Position:
-          <select
-            value={config.branch.position}
-            onChange={(e) => setBranch({ position: e.target.value as BranchPosition })}
-          >
-            <option value="top-right">Top Right</option>
-            <option value="bottom">Bottom</option>
-            <option value="inline-after-meta">Inline After Meta</option>
-          </select>
-        </label>
-      </div>
-
-      <div>
-        <label>
-          Style:
-          <select
-            value={config.branch.style}
-            onChange={(e) => setBranch({ style: e.target.value as BranchStyle })}
-          >
-            <option value="arrows">Arrows (‹ 2/3 ›)</option>
-            <option value="dots">Dots (○ ● ○)</option>
-            <option value="minimal">Minimal (2/3)</option>
+            <option value="sm">Small</option>
+            <option value="md">Medium</option>
+            <option value="lg">Large</option>
           </select>
         </label>
       </div>

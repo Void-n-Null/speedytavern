@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 ideas/
+
+# Server data (SQLite database)
+data/

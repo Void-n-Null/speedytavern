@@ -1,4 +1,6 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
+import { useBranchConfig } from '../../store/messageStyleStore';
+import { branchChevronSizeMap } from '../../types/messageStyle';
 
 interface MessageBranchIndicatorProps {
   nodeId: string;
@@ -19,6 +21,18 @@ export const MessageBranchIndicator = memo(function MessageBranchIndicator({
   onSwitchBranch,
   onCreateBranch,
 }: MessageBranchIndicatorProps) {
+  const branchConfig = useBranchConfig();
+  const chevronSize = branchChevronSizeMap[branchConfig.chevronSize || 'md'];
+
+  const chevronStyle = useMemo(
+    () => ({
+      width: `${chevronSize.width}px`,
+      height: `${chevronSize.height}px`,
+      fontSize: `${chevronSize.fontSize}px`,
+    }),
+    [chevronSize.width, chevronSize.height, chevronSize.fontSize]
+  );
+
   const handlePrev = useCallback(() => {
     onSwitchBranch(nodeId, 'prev');
   }, [nodeId, onSwitchBranch]);
@@ -41,6 +55,7 @@ export const MessageBranchIndicator = memo(function MessageBranchIndicator({
         onClick={handlePrev}
         disabled={!canGoPrev}
         aria-label="Previous branch"
+        style={chevronStyle}
       >
         ‹
       </button>
@@ -48,6 +63,7 @@ export const MessageBranchIndicator = memo(function MessageBranchIndicator({
         className="branch-chevron branch-chevron--right"
         onClick={handleNext}
         aria-label="Next branch or create new"
+        style={chevronStyle}
       >
         ›
       </button>

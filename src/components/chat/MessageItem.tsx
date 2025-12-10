@@ -7,7 +7,6 @@ import { MessageBranchIndicator } from './MessageBranchIndicator';
 import { MessageActions } from './MessageActions';
 import {
   useLayoutConfig,
-  useActionsConfig,
   useEditConfig,
 } from '../../store/messageStyleStore';
 import { gapMap, paddingMap } from '../../types/messageStyle';
@@ -52,7 +51,6 @@ export const MessageItem = memo(function MessageItem({
   onCopy,
 }: MessageItemProps) {
   const layout = useLayoutConfig();
-  const actionsConfig = useActionsConfig();
   const editConfig = useEditConfig();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -144,9 +142,6 @@ export const MessageItem = memo(function MessageItem({
   const handleMouseEnter = () => setIsHovered(true);
   const handleMouseLeave = () => setIsHovered(false);
 
-  // Compute visibility styles for actions and branch indicators
-  const hoverVisibleStyle: CSSProperties = isHovered ? { opacity: 1 } : {};
-
   // Edit buttons position style
   const editButtonsStyle = useMemo((): CSSProperties => {
     const base: CSSProperties = {
@@ -205,26 +200,26 @@ export const MessageItem = memo(function MessageItem({
           onEditChange={setEditContent}
         />
         
-        {isEditing ? (
+        {isEditing && (
           <div className="message-edit-actions" style={editButtonsStyle}>
             <button onClick={handleSaveEdit}>Save</button>
             <button onClick={handleCancelEdit}>Cancel</button>
           </div>
-        ) : (
-          /* Actions with hover visibility */
-          <div style={actionsConfig.visibility === 'hover' ? hoverVisibleStyle : undefined}>
-            <MessageActions
-              nodeId={node.id}
-              isBot={node.is_bot}
-              onEdit={handleStartEdit}
-              onDelete={onDelete}
-              onRegenerate={node.is_bot ? onRegenerate : undefined}
-              onBranch={onBranch}
-              onCopy={handleCopy}
-            />
-          </div>
         )}
       </div>
+      
+      {/* Actions in top-right corner of message-item */}
+      {!isEditing && (
+        <MessageActions
+          nodeId={node.id}
+          isBot={node.is_bot}
+          onEdit={handleStartEdit}
+          onDelete={onDelete}
+          onRegenerate={node.is_bot ? onRegenerate : undefined}
+          onBranch={onBranch}
+          onCopy={handleCopy}
+        />
+      )}
       
       {/* Branch chevrons at left/right edges */}
       <MessageBranchIndicator

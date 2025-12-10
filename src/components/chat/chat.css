@@ -143,15 +143,21 @@
   font-size: 13px;
 }
 
-/* Message Actions */
+/* Message Actions - positioned in top-right corner */
 .message-actions {
   display: flex;
   gap: 4px;
-  opacity: 0.4;
+  opacity: 1;
   transition: opacity 0.15s ease;
+  z-index: 2;
 }
 
-.message-item:hover .message-actions {
+/* Hover visibility mode - hidden by default, shown on hover */
+.message-actions--hover {
+  opacity: 0;
+}
+
+.message-item:hover .message-actions--hover {
   opacity: 1;
 }
 
@@ -190,14 +196,12 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 24px;
-  height: 40px;
+  /* width, height, fontSize set via inline style from config */
   padding: 0;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  font-size: 18px;
   font-weight: normal;
   display: flex;
   align-items: center;

@@ -77,14 +77,10 @@ export interface ActionsConfig {
 }
 
 // ============ Branch Indicator ============
-export type BranchVisibility = 'always' | 'hover' | 'when-multiple';
-export type BranchPosition = 'top-right' | 'bottom' | 'inline-after-meta';
-export type BranchStyle = 'arrows' | 'dots' | 'minimal';
+export type BranchChevronSize = 'sm' | 'md' | 'lg';
 
 export interface BranchConfig {
-  visibility: BranchVisibility;
-  position: BranchPosition;
-  style: BranchStyle;
+  chevronSize: BranchChevronSize;
 }
 
 // ============ Timestamp ============
@@ -181,9 +177,7 @@ export const defaultActions: ActionsConfig = {
 };
 
 export const defaultBranch: BranchConfig = {
-  visibility: 'when-multiple',
-  position: 'top-right',
-  style: 'arrows',
+  chevronSize: 'md',
 };
 
 export const defaultTimestamp: TimestampConfig = {
@@ -217,6 +211,12 @@ export const defaultMessageStyleConfig: MessageStyleConfig = {
 };
 
 // ============ CSS Variable Mappings ============
+export const branchChevronSizeMap: Record<BranchChevronSize, { width: number; height: number; fontSize: number }> = {
+  sm: { width: 16, height: 24, fontSize: 12 },
+  md: { width: 28, height: 44, fontSize: 20 },
+  lg: { width: 40, height: 64, fontSize: 28 },
+};
+
 export const fontSizeMap: Record<FontSize, string> = {
   xs: '12px',
   sm: '14px',

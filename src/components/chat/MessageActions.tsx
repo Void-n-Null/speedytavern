@@ -1,6 +1,6 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import type { CSSProperties } from 'react';
-import { useActionsConfig, useAnimationConfig } from '../../store/messageStyleStore';
+import { useActionsConfig } from '../../store/messageStyleStore';
 import { actionsSizeMap } from '../../types/messageStyle';
 
 interface MessageActionsProps {
@@ -29,7 +29,6 @@ export const MessageActions = memo(function MessageActions({
   onCopy,
 }: MessageActionsProps) {
   const actionsConfig = useActionsConfig();
-  const animationConfig = useAnimationConfig();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleDelete = useCallback(() => {
@@ -47,33 +46,19 @@ export const MessageActions = memo(function MessageActions({
   const handleBranch = useCallback(() => onBranch(nodeId), [nodeId, onBranch]);
   const handleCopy = useCallback(() => onCopy?.(nodeId), [nodeId, onCopy]);
 
-  // Container styles
+  // Container styles - always positioned in top-right corner
   const containerStyle = useMemo((): CSSProperties => {
     const base: CSSProperties = {
       display: 'flex',
       gap: '4px',
       alignItems: 'center',
+      position: 'absolute',
+      top: '4px',
+      right: '4px',
     };
 
-    // Position handling
-    if (actionsConfig.position === 'bottom') {
-      base.marginTop = '8px';
-    } else if (actionsConfig.position === 'overlay-corner') {
-      base.position = 'absolute';
-      base.top = '4px';
-      base.right = '4px';
-    }
-
-    // Visibility handling via opacity
-    if (actionsConfig.visibility === 'hover') {
-      base.opacity = 0;
-      if (animationConfig.enabled && animationConfig.hoverTransition !== 'none') {
-        base.transition = 'opacity 0.15s ease-in-out';
-      }
-    }
-
     return base;
-  }, [actionsConfig.position, actionsConfig.visibility, animationConfig]);
+  }, []);
 
   // Button styles
   const buttonStyle = useMemo((): CSSProperties => {

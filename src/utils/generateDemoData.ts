@@ -18,6 +18,7 @@ export const userMessages = [
   "I hadn't thought of that.",
   "That's a good point.",
   "Tell me about yourself.",
+  "This\nMessage\nIs\nVery\nTall\nTo\nTest\nScrolling",
 ];
 
 export const botMessages = [
