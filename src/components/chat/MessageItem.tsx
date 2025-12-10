@@ -26,6 +26,31 @@ interface MessageItemProps {
   onCopy?: (nodeId: string) => void;
 }
 
+// Custom comparison to prevent re-renders when data hasn't changed
+// Compares actual data values, not object references
+function arePropsEqual(prev: MessageItemProps, next: MessageItemProps): boolean {
+  // Compare node data (not reference)
+  if (prev.node.id !== next.node.id) return false;
+  if (prev.node.message !== next.node.message) return false;
+  if (prev.node.speaker_id !== next.node.speaker_id) return false;
+  if (prev.node.created_at !== next.node.created_at) return false;
+  
+  // Compare speaker data (not reference)
+  if (prev.speaker.id !== next.speaker.id) return false;
+  if (prev.speaker.name !== next.speaker.name) return false;
+  if (prev.speaker.color !== next.speaker.color) return false;
+  
+  // Compare primitives
+  if (prev.isFirstInGroup !== next.isFirstInGroup) return false;
+  if (prev.siblingCount !== next.siblingCount) return false;
+  if (prev.currentSiblingIndex !== next.currentSiblingIndex) return false;
+  
+  // Callbacks are compared by reference, but they should be stable via useCallback
+  // Skip comparing them - they should be stable from parent
+  
+  return true;
+}
+
 /**
  * Single message container - composes smaller components.
  * Now fully customizable via messageStyleStore.
@@ -231,4 +256,4 @@ export const MessageItem = memo(function MessageItem({
       />
     </div>
   );
-});
+}, arePropsEqual);

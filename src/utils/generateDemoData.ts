@@ -1,7 +1,5 @@
-import { useChatStore } from '../store/chatStore';
-import type { ChatNode, Speaker } from '../types/chat';
+// Demo message content for branch creation and testing
 
-// Exported for use in branch creation
 export const userMessages = [
   "Hey, how's it going?",
   "That's interesting, tell me more.",
@@ -44,108 +42,5 @@ export const pickRandomMessage = (isUser: boolean): string => {
   return arr[Math.floor(Math.random() * arr.length)];
 };
 
-/**
- * Generates demo chat data for testing.
- * Creates 300 nodes: 200 in main branch + 100 in alternate branch.
- * 
- * FAST: Builds all data in memory, then calls initialize() once.
- * No individual state updates = 10x+ speedup.
- */
-export function generateDemoData() {
-  const store = useChatStore.getState();
-  
-  // Don't regenerate if data exists
-  if (store.nodes.size > 0) return;
-
-  // Pre-generate IDs
-  const userId = crypto.randomUUID();
-  const botId = crypto.randomUUID();
-
-  // Build speakers array
-  const speakers: Speaker[] = [
-    { id: userId, name: 'User', is_user: true, color: '#3498db' },
-    { id: botId, name: 'Bot', is_user: false, color: '#9b59b6' },
-  ];
-
-  const pickRandom = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-
-  // Build all nodes in memory (no state updates yet)
-  const nodes: ChatNode[] = [];
-  const nodeMap = new Map<string, ChatNode>();
-  
-  const createNode = (parentId: string | null, content: string, speakerId: string, isBot: boolean): string => {
-    const id = crypto.randomUUID();
-    const node: ChatNode = {
-      id,
-      parent_id: parentId,
-      child_ids: [],
-      active_child_index: null,
-      speaker_id: speakerId,
-      message: content,
-      is_bot: isBot,
-      created_at: Date.now(),
-    };
-    nodes.push(node);
-    nodeMap.set(id, node);
-    
-    // Update parent's child_ids (mutate directly - it's our local data)
-    if (parentId) {
-      const parent = nodeMap.get(parentId);
-      if (parent) {
-        parent.active_child_index = parent.child_ids.length;
-        parent.child_ids.push(id);
-      }
-    }
-    
-    return id;
-  };
-
-  // Generate 200 messages alternating between user and bot
-  let parentId: string | null = null;
-  let branchPointId: string | null = null;
-  
-  for (let i = 0; i < 200; i++) {
-    const isUser = i % 2 === 0;
-    const content = pickRandom(isUser ? userMessages : botMessages);
-    const speakerId = isUser ? userId : botId;
-    
-    // Save branch point at message 189
-    if (i === 189) {
-      branchPointId = parentId;
-    }
-    
-    parentId = createNode(parentId, content, speakerId, !isUser);
-  }
-  
-  // Create alternate branch with 100 messages at position 190
-  if (branchPointId) {
-    let altParentId = branchPointId;
-    
-    altParentId = createNode(
-      altParentId, 
-      "🌟 [ALTERNATE TIMELINE] The story takes a different turn here...", 
-      botId, 
-      true
-    );
-    
-    for (let i = 0; i < 99; i++) {
-      const isUser = i % 2 === 0;
-      const content = `[Alt ${i + 2}] ${pickRandom(isUser ? userMessages : botMessages)}`;
-      const speakerId = isUser ? userId : botId;
-      
-      altParentId = createNode(altParentId, content, speakerId, !isUser);
-    }
-    
-    // Set main branch as active (index 0) at branch point
-    const branchPointNode = nodeMap.get(branchPointId);
-    if (branchPointNode) {
-      branchPointNode.active_child_index = 0;
-    }
-  }
-
-  // Single state update - initialize everything at once
-  store.initialize(nodes, speakers);
-  
-  console.log('[Demo] Created 300-node tree (batched)');
-  console.log('[Demo] Branch at message 190: index 0 = 10 msgs, index 1 = 100 msgs');
-}
+// Note: Demo data is now seeded from the server database.
+// See server/routes/chats.ts for the seed logic.

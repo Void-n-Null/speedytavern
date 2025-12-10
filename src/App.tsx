@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MessageList } from './components/chat';
 import { MessageStyleSettings } from './components/settings/MessageStyleSettings';
-import { generateDemoData } from './utils/generateDemoData';
+import { useServerChat } from './hooks/queries';
 import { useStreamingDemo } from './hooks/useStreamingDemo';
 
 /**
@@ -11,10 +11,37 @@ import { useStreamingDemo } from './hooks/useStreamingDemo';
  */
 export function App() {
   const [showSettings, setShowSettings] = useState(false);
+  const { isLoading, error } = useServerChat();
 
-  useEffect(() => {
-    generateDemoData();
-  }, []);
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh',
+        color: '#888',
+        fontSize: 18,
+      }}>
+        Loading chat from server...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh',
+        color: '#f44',
+        fontSize: 18,
+      }}>
+        Error loading chat: {error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="app" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>

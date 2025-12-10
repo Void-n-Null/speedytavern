@@ -167,10 +167,12 @@ chatRoutes.post('/:id/messages', async (c) => {
     content: string;
     speakerId: string;
     isBot: boolean;
+    createdAt?: number;
   }>();
   
   const id = crypto.randomUUID();
-  const now = Date.now();
+  // Use provided timestamp (e.g., from streaming start) or current time
+  const now = body.createdAt ?? Date.now();
   
   transaction(() => {
     // Insert new node

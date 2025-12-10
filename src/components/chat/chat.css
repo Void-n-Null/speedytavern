@@ -103,8 +103,8 @@
 /* Streaming cursor animation */
 .streaming-cursor {
   display: inline-block;
-  color: #646cff;
-  animation: blink 0.8s infinite;
+  color: #696969;
+  /* animation: blink 0.2s infinite; */
   margin-left: 2px;
 }
 

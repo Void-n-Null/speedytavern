@@ -4,9 +4,10 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { queryKeys } from '../../lib/queryClient';
-import { chats, type ChatMeta, type ChatFull } from '../../api/client';
-import type { ChatNode } from '../../types/chat';
+import { chats, defaultChat, speakers, type ChatMeta, type ChatFull } from '../../api/client';
+import type { ChatNode, Speaker } from '../../types/chat';
 
 // ============ Queries ============
 
@@ -92,7 +93,8 @@ export function useAddMessage(chatId: string) {
       content: string;
       speakerId: string;
       isBot: boolean;
-    }) => chats.addMessage(chatId, params.parentId, params.content, params.speakerId, params.isBot),
+      createdAt?: number;
+    }) => chats.addMessage(chatId, params.parentId, params.content, params.speakerId, params.isBot, params.createdAt),
     
     onMutate: async (params) => {
       // Cancel outgoing refetches
@@ -101,10 +103,11 @@ export function useAddMessage(chatId: string) {
       // Snapshot previous value
       const previous = queryClient.getQueryData<ChatFull>(queryKeys.chats.detail(chatId));
       
-      // Optimistically add the message
+      // Optimistically add the message with a temporary ID
+      const tempId = `__temp_${crypto.randomUUID()}`;
+      
       if (previous) {
-        const tempId = crypto.randomUUID();
-        const now = Date.now();
+        const createdAt = params.createdAt ?? Date.now();
         
         const newNode: ChatNode = {
           id: tempId,
@@ -114,7 +117,7 @@ export function useAddMessage(chatId: string) {
           speaker_id: params.speakerId,
           message: params.content,
           is_bot: params.isBot,
-          created_at: now,
+          created_at: createdAt,
         };
         
         // Update parent's child_ids
@@ -136,7 +139,35 @@ export function useAddMessage(chatId: string) {
         });
       }
       
-      return { previous };
+      return { previous, tempId };
+    },
+    
+    onSuccess: (response, params, context) => {
+      // Replace temp node with real node from server
+      const current = queryClient.getQueryData<ChatFull>(queryKeys.chats.detail(chatId));
+      if (current && context?.tempId) {
+        const realId = response.id;
+        const realCreatedAt = response.created_at;
+        
+        queryClient.setQueryData<ChatFull>(queryKeys.chats.detail(chatId), {
+          ...current,
+          nodes: current.nodes.map(node => {
+            // Replace temp node with real ID
+            if (node.id === context.tempId) {
+              return { ...node, id: realId, created_at: realCreatedAt };
+            }
+            // Update parent's child_ids to use real ID
+            if (node.id === params.parentId) {
+              return {
+                ...node,
+                child_ids: node.child_ids.map(cid => cid === context.tempId ? realId : cid),
+              };
+            }
+            return node;
+          }),
+          tailId: current.tailId === context.tempId ? realId : current.tailId,
+        });
+      }
     },
     
     onError: (_, __, context) => {
@@ -145,11 +176,7 @@ export function useAddMessage(chatId: string) {
         queryClient.setQueryData(queryKeys.chats.detail(chatId), context.previous);
       }
     },
-    
-    onSettled: () => {
-      // Refetch to sync with server
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) });
-    },
+    // No onSettled - we don't need to refetch!
   });
 }
 
@@ -188,15 +215,76 @@ export function useEditMessage(chatId: string) {
   });
 }
 
-/** Delete message */
+/** Delete message with optimistic update */
 export function useDeleteMessage(chatId: string) {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (nodeId: string) => chats.deleteMessage(chatId, nodeId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats.detail(chatId) });
+    
+    onMutate: async (nodeId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.chats.detail(chatId) });
+      
+      const previous = queryClient.getQueryData<ChatFull>(queryKeys.chats.detail(chatId));
+      
+      if (previous) {
+        // Collect node and all descendants to delete
+        const toDelete = new Set<string>();
+        const collectDescendants = (id: string) => {
+          toDelete.add(id);
+          const node = previous.nodes.find(n => n.id === id);
+          node?.child_ids.forEach(collectDescendants);
+        };
+        collectDescendants(nodeId);
+        
+        // Find the node's parent to update its child_ids
+        const deletedNode = previous.nodes.find(n => n.id === nodeId);
+        const parentId = deletedNode?.parent_id;
+        
+        // Filter out deleted nodes and update parent
+        const updatedNodes = previous.nodes
+          .filter(n => !toDelete.has(n.id))
+          .map(node => {
+            if (node.id === parentId) {
+              const newChildIds = node.child_ids.filter(cid => cid !== nodeId);
+              return {
+                ...node,
+                child_ids: newChildIds,
+                active_child_index: newChildIds.length > 0 
+                  ? Math.min(node.active_child_index ?? 0, newChildIds.length - 1)
+                  : null,
+              };
+            }
+            return node;
+          });
+        
+        // Recalculate tail
+        let newTailId = previous.rootId;
+        if (newTailId) {
+          const nodeMap = new Map(updatedNodes.map(n => [n.id, n]));
+          let current = nodeMap.get(newTailId);
+          while (current && current.child_ids.length > 0 && current.active_child_index !== null) {
+            newTailId = current.child_ids[current.active_child_index];
+            current = nodeMap.get(newTailId);
+          }
+        }
+        
+        queryClient.setQueryData<ChatFull>(queryKeys.chats.detail(chatId), {
+          ...previous,
+          nodes: updatedNodes,
+          tailId: newTailId,
+        });
+      }
+      
+      return { previous };
     },
+    
+    onError: (_, __, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.chats.detail(chatId), context.previous);
+      }
+    },
+    // No refetch needed - optimistic update handles it
   });
 }
 
@@ -248,4 +336,131 @@ export function useSwitchBranch(chatId: string) {
       }
     },
   });
+}
+
+// ============ Default Chat ============
+
+/** Fetch the default chat ID from server */
+export function useDefaultChatId() {
+  return useQuery({
+    queryKey: ['default-chat'],
+    queryFn: () => defaultChat.getId(),
+    staleTime: Infinity, // ID doesn't change during session
+  });
+}
+
+/**
+ * Load the default chat from server with computed data.
+ * This is the main hook for bootstrapping the chat UI.
+ * 
+ * All state comes directly from TanStack Query cache - no Zustand sync needed.
+ */
+export function useServerChat() {
+  const { data: defaultChatData, isLoading: isLoadingId } = useDefaultChatId();
+  const chatId = defaultChatData?.id;
+  
+  const { data: chat, isLoading: isLoadingChat, error: chatError } = useChat(chatId);
+  
+  // Fetch speakers
+  const speakersQuery = useQuery({
+    queryKey: queryKeys.speakers.list(),
+    queryFn: () => speakers.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+  
+  const speakersData = speakersQuery.data;
+  const error = chatError || speakersQuery.error;
+  
+  // Compute nodes Map for efficient lookup
+  const nodes = useMemo(() => {
+    const map = new Map<string, ChatNode>();
+    if (chat?.nodes) {
+      chat.nodes.forEach(n => map.set(n.id, n));
+    }
+    return map;
+  }, [chat?.nodes]);
+  
+  // Compute speakers Map for efficient lookup
+  const speakersMap = useMemo(() => {
+    const map = new Map<string, Speaker>();
+    if (speakersData) {
+      speakersData.forEach(s => map.set(s.id, s));
+    }
+    return map;
+  }, [speakersData]);
+  
+  // Find root node (node with no parent)
+  const rootId = useMemo(() => {
+    if (!chat?.nodes) return null;
+    const root = chat.nodes.find(n => n.parent_id === null);
+    return root?.id ?? null;
+  }, [chat?.nodes]);
+  
+  // Compute active path by following active_child_index from root
+  const activePath = useMemo(() => {
+    const nodeIds: string[] = [];
+    const nodeList: ChatNode[] = [];
+    
+    if (!rootId) {
+      return { nodeIds, nodes: nodeList };
+    }
+    
+    let currentId: string | null = rootId;
+    
+    while (currentId) {
+      const node = nodes.get(currentId);
+      if (!node) break;
+      
+      nodeIds.push(currentId);
+      nodeList.push(node);
+      
+      // Follow active child
+      if (node.child_ids.length > 0 && node.active_child_index !== null) {
+        currentId = node.child_ids[node.active_child_index];
+      } else {
+        currentId = null;
+      }
+    }
+    
+    return { nodeIds, nodes: nodeList };
+  }, [rootId, nodes]);
+  
+  // Mutations bound to the current chat
+  const addMessageMutation = useAddMessage(chatId ?? '');
+  const editMessageMutation = useEditMessage(chatId ?? '');
+  const deleteMessageMutation = useDeleteMessage(chatId ?? '');
+  const switchBranchMutation = useSwitchBranch(chatId ?? '');
+  
+  return {
+    chatId,
+    chat,
+    isLoading: isLoadingId || isLoadingChat || speakersQuery.isLoading,
+    error,
+    
+    // Computed data (replaces Zustand)
+    nodes,
+    speakers: speakersMap,
+    rootId,
+    tailId: chat?.tailId ?? null,
+    activePath,
+    
+    // Bound mutations
+    addMessage: (parentId: string | null, content: string, speakerId: string, isBot: boolean, createdAt?: number) =>
+      addMessageMutation.mutateAsync({ parentId, content, speakerId, isBot, createdAt }),
+    
+    editMessage: (nodeId: string, content: string) =>
+      editMessageMutation.mutateAsync({ nodeId, content }),
+    
+    deleteMessage: (nodeId: string) =>
+      deleteMessageMutation.mutateAsync(nodeId),
+    
+    switchBranch: (targetLeafId: string) =>
+      switchBranchMutation.mutateAsync(targetLeafId),
+    
+    // Mutation states
+    isAddingMessage: addMessageMutation.isPending,
+    isEditingMessage: editMessageMutation.isPending,
+    isDeletingMessage: deleteMessageMutation.isPending,
+    isSwitchingBranch: switchBranchMutation.isPending,
+  };
 }

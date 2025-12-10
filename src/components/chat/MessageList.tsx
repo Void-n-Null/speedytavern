@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useRef, useEffect, useState, useLayoutEffect } from 'react';
 import type { CSSProperties } from 'react';
-import { useChatStore } from '../../store/chatStore';
 import { useMessageStyleStore } from '../../store/messageStyleStore';
+import { useServerChat } from '../../hooks/queries';
 import { MessageItem } from './MessageItem';
+import { EtherealMessage } from './EtherealMessage';
 import { pickRandomMessage } from '../../utils/generateDemoData';
 
 /**
@@ -149,47 +150,72 @@ export function MessageList() {
   const leftHandleStyle: CSSProperties = { ...handleStyle, left: '-4px' };
   const rightHandleStyle: CSSProperties = { ...handleStyle, right: '-4px' };
   
-  const nodes = useChatStore((s) => s.nodes);
-  const speakers = useChatStore((s) => s.speakers);
-  const getActivePath = useChatStore((s) => s.getActivePath);
-  const editMessage = useChatStore((s) => s.editMessage);
-  const deleteMessage = useChatStore((s) => s.deleteMessage);
-  const switchBranch = useChatStore((s) => s.switchBranch);
-
-  // Get active path (cached in store)
-  const activePath = getActivePath();
+  // All chat data from TanStack Query (single source of truth)
+  const { 
+    nodes,
+    speakers,
+    activePath,
+    editMessage: serverEditMessage, 
+    deleteMessage: serverDeleteMessage, 
+    switchBranch: serverSwitchBranch,
+    addMessage: serverAddMessage,
+  } = useServerChat();
+  
+  // Refs for stable access in callbacks (prevents re-renders when mutations change)
+  const nodesRef = useRef(nodes);
+  const speakersRef = useRef(speakers);
+  const serverEditMessageRef = useRef(serverEditMessage);
+  const serverDeleteMessageRef = useRef(serverDeleteMessage);
+  const serverAddMessageRef = useRef(serverAddMessage);
+  const serverSwitchBranchRef = useRef(serverSwitchBranch);
+  nodesRef.current = nodes;
+  speakersRef.current = speakers;
+  serverEditMessageRef.current = serverEditMessage;
+  serverDeleteMessageRef.current = serverDeleteMessage;
+  serverAddMessageRef.current = serverAddMessage;
+  serverSwitchBranchRef.current = serverSwitchBranch;
 
   // Compute sibling info for each node
   // IMPORTANT: Use node_ids from path, but look up FRESH nodes from the Map
   // This ensures we get the latest content after edits/streaming
   const pathInfo = useMemo(() => {
-    return activePath.node_ids.map((nodeId, index) => {
-      const node = nodes.get(nodeId)!;
+    return activePath.nodeIds.map((nodeId, index) => {
+      const node = nodes.get(nodeId);
+      if (!node) {
+        console.warn('[MessageList] Node not found:', nodeId);
+        return null;
+      }
+      
+      const speaker = speakers.get(node.speaker_id);
+      if (!speaker) {
+        console.warn('[MessageList] Speaker not found:', node.speaker_id, 'for node:', nodeId);
+      }
+      
       const parent = node.parent_id ? nodes.get(node.parent_id) : null;
       const siblingCount = parent?.child_ids.length ?? 1;
       const currentSiblingIndex = parent?.child_ids.indexOf(node.id) ?? 0;
-      const prevNodeId = index > 0 ? activePath.node_ids[index - 1] : null;
+      const prevNodeId = index > 0 ? activePath.nodeIds[index - 1] : null;
       const prevNode = prevNodeId ? nodes.get(prevNodeId) : null;
       const isFirstInGroup = !prevNode || prevNode.speaker_id !== node.speaker_id;
       
       return {
         node,
-        speaker: speakers.get(node.speaker_id)!,
+        speaker: speaker ?? { id: node.speaker_id, name: 'Unknown', is_user: false, color: '#666' },
         siblingCount,
         currentSiblingIndex,
         isFirstInGroup,
       };
-    });
-  }, [activePath.node_ids, nodes, speakers]);
+    }).filter((item): item is NonNullable<typeof item> => item !== null);
+  }, [activePath.nodeIds, nodes, speakers]);
 
-  // Stable callbacks
+  // Stable callbacks - use refs to avoid re-creating on every render
   const handleEdit = useCallback((nodeId: string, content: string) => {
-    editMessage(nodeId, content);
-  }, [editMessage]);
+    serverEditMessageRef.current(nodeId, content);
+  }, []); // Empty deps - uses ref
 
   const handleDelete = useCallback((nodeId: string) => {
-    deleteMessage(nodeId);
-  }, [deleteMessage]);
+    serverDeleteMessageRef.current(nodeId);
+  }, []); // Empty deps - uses ref
 
   const handleBranch = useCallback((nodeId: string) => {
     // For now, just log - will implement branch creation UI
@@ -197,12 +223,13 @@ export function MessageList() {
   }, []);
 
   // Create a new branch with demo content
-  const handleCreateBranch = useCallback((nodeId: string) => {
-    const { nodes, speakers, addMessage, switchBranch } = useChatStore.getState();
-    const node = nodes.get(nodeId);
+  const handleCreateBranch = useCallback(async (nodeId: string) => {
+    const currentNodes = nodesRef.current;
+    const currentSpeakers = speakersRef.current;
+    const node = currentNodes.get(nodeId);
     if (!node?.parent_id) return;
     
-    const parent = nodes.get(node.parent_id);
+    const parent = currentNodes.get(node.parent_id);
     if (!parent) return;
     
     // Capture scroll anchor BEFORE creating the new branch (same as handleSwitchBranch)
@@ -227,16 +254,15 @@ export function MessageList() {
     }
     
     // Get the original speaker info to determine if user or bot
-    const speaker = speakers.get(node.speaker_id);
+    const speaker = currentSpeakers.get(node.speaker_id);
     const isUser = speaker?.is_user ?? false;
     
-    // Create new sibling message with random demo content
+    // Create new sibling message with random demo content (persisted to server)
     const newContent = `[Branch] ${pickRandomMessage(isUser)}`;
-    const newId = addMessage(node.parent_id, newContent, node.speaker_id, node.is_bot);
+    await serverAddMessageRef.current(node.parent_id, newContent, node.speaker_id, node.is_bot);
     
-    // Switch to the new branch
-    switchBranch(newId);
-  }, []);
+    // Note: The new message becomes the tail automatically via optimistic update
+  }, [animationsEnabled, branchSwitchAnimation]);
 
   const handleRegenerate = useCallback((nodeId: string) => {
     // Will trigger AI regeneration
@@ -244,14 +270,14 @@ export function MessageList() {
   }, []);
 
   // STABLE callback - no dependencies that change on mutations
-  // Access nodes via getState() to avoid recreating on every mutation
+  // Access nodes via ref to avoid recreating on every mutation
   const handleSwitchBranch = useCallback((nodeId: string, direction: 'prev' | 'next') => {
-    const { nodes } = useChatStore.getState(); // Get current nodes at call time
+    const currentNodes = nodesRef.current;
     
-    const node = nodes.get(nodeId);
+    const node = currentNodes.get(nodeId);
     if (!node?.parent_id) return;
 
-    const parent = nodes.get(node.parent_id);
+    const parent = currentNodes.get(node.parent_id);
     if (!parent) return;
 
     const currentIndex = parent.child_ids.indexOf(nodeId);
@@ -288,16 +314,17 @@ export function MessageList() {
     
     // Find the leaf of the target sibling's branch by following active_child_index
     let leafId = targetSiblingId;
-    let current = nodes.get(leafId);
+    let current = currentNodes.get(leafId);
     
     while (current && current.child_ids.length > 0) {
       const nextIndex = current.active_child_index ?? 0;
       leafId = current.child_ids[nextIndex];
-      current = nodes.get(leafId);
+      current = currentNodes.get(leafId);
     }
 
-    switchBranch(leafId);
-  }, [switchBranch]); // Only depends on switchBranch which is stable
+    // Persist to server - optimistic update handles immediate UI
+    serverSwitchBranchRef.current(leafId);
+  }, [animationsEnabled, branchSwitchAnimation]); // Stable - uses refs
 
   // Restore scroll position after branch switch (runs synchronously after DOM update)
   useLayoutEffect(() => {
@@ -311,11 +338,11 @@ export function MessageList() {
     
     // Find the NEW sibling in the path (the child of parentId that's now active)
     // Look through the rendered path to find which node has parentId as its parent
-    const parentIndex = activePath.node_ids.findIndex(id => id === anchor.parentId);
-    if (parentIndex === -1 || parentIndex >= activePath.node_ids.length - 1) return;
+    const parentIndex = activePath.nodeIds.findIndex(id => id === anchor.parentId);
+    if (parentIndex === -1 || parentIndex >= activePath.nodeIds.length - 1) return;
     
     // The new sibling is the node right after the parent in the path
-    const newSiblingId = activePath.node_ids[parentIndex + 1];
+    const newSiblingId = activePath.nodeIds[parentIndex + 1];
     const anchorElement = container.querySelector(`[data-node-id="${newSiblingId}"]`) as HTMLElement | null;
     if (!anchorElement) return;
     
@@ -377,13 +404,13 @@ export function MessageList() {
         setTimeout(cleanup, 350);
       }
     }
-  }, [activePath.node_ids]); // Trigger when path changes
+  }, [activePath.nodeIds]); // Trigger when path changes
 
   // Auto-scroll to bottom when NEW messages are added (not branch switches)
-  const prevPathRef = useRef<string[]>(activePath.node_ids);
+  const prevPathRef = useRef<string[]>(activePath.nodeIds);
   useEffect(() => {
     const prevIds = prevPathRef.current;
-    const currentIds = activePath.node_ids;
+    const currentIds = activePath.nodeIds;
     
     // Skip auto-scroll if this was a branch switch (handled by useLayoutEffect above)
     if (skipAutoScrollRef.current) {
@@ -403,7 +430,7 @@ export function MessageList() {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
     prevPathRef.current = currentIds;
-  }, [activePath.node_ids]);
+  }, [activePath.nodeIds]);
 
   // Clear animation state after animation completes
   useEffect(() => {
@@ -421,10 +448,10 @@ export function MessageList() {
     if (branchSwitchAnimation === 'none') return false;
     
     // Find the index of the parent in the path
-    const parentIndex = activePath.node_ids.indexOf(branchAnimation.parentId);
+    const parentIndex = activePath.nodeIds.indexOf(branchAnimation.parentId);
     // Animate messages AFTER the parent (the branch point and everything below)
     return parentIndex !== -1 && nodeIndex > parentIndex;
-  }, [branchAnimation, branchSwitchAnimation, activePath.node_ids]);
+  }, [branchAnimation, branchSwitchAnimation, activePath.nodeIds]);
   
   // Get animation class for a message
   const getAnimationClass = useCallback((nodeIndex: number): string => {
@@ -485,6 +512,9 @@ export function MessageList() {
             </div>
           );
         })}
+        
+        {/* Ethereal (streaming) message at tail */}
+        <EtherealMessage />
       </div>
     </div>
   );

@@ -5,8 +5,12 @@ import { initDb, closeDb } from './db';
 import { chatRoutes } from './routes/chats';
 import { settingsRoutes } from './routes/settings';
 import { speakerRoutes } from './routes/speakers';
+import { seedDemoDataIfEmpty } from './seed';
 
 const app = new Hono();
+
+// Store the default chat ID after seeding
+let defaultChatId: string | null = null;
 
 // Middleware
 app.use('*', logger());
@@ -18,6 +22,14 @@ app.use('*', cors({
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }));
 
+// Get default chat ID (seeded on startup)
+app.get('/api/default-chat', (c) => {
+  if (!defaultChatId) {
+    return c.json({ error: 'No default chat available' }, 404);
+  }
+  return c.json({ id: defaultChatId });
+});
+
 // Routes
 app.route('/api/chats', chatRoutes);
 app.route('/api/settings', settingsRoutes);
@@ -27,6 +39,7 @@ app.route('/api/speakers', speakerRoutes);
 const port = Number(process.env.PORT) || 3001;
 
 initDb();
+defaultChatId = seedDemoDataIfEmpty();
 
 console.log(`🚀 Server running at http://localhost:${port}`);
 

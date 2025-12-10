@@ -1,97 +1,143 @@
 import { create } from 'zustand';
-import { useChatStore } from './chatStore';
+
+/**
+ * Ethereal streaming message - exists only during streaming, not in chat store.
+ * This is rendered as a virtual node at the tail of the active path.
+ */
+export interface EtherealMessage {
+  parentId: string;
+  speakerId: string;
+  content: string;
+  startedAt: number;
+}
 
 interface StreamingStore {
-  // State
-  nodeId: string | null;
-  content: string;
+  // State - the ethereal message (null when not streaming)
+  ethereal: EtherealMessage | null;
+  
+  // Computed
   isStreaming: boolean;
   
   // Actions
-  startStreaming: (parentId: string, speakerId: string) => string;
-  appendContent: (chunk: string) => void;
-  finalize: () => void;
+  start: (parentId: string, speakerId: string) => void;
+  append: (chunk: string) => void;
+  setContent: (content: string) => void;
+  finalize: () => EtherealMessage | null;
   cancel: () => void;
 }
 
 /**
- * Separate store for streaming state.
+ * Streaming store with ethereal messages.
  * 
- * Why separate?
- * - MessageContent can subscribe ONLY to `content` for the streaming node
- * - Other components (MessageMeta, MessageActions, etc.) won't re-render
- * - Chat store stays clean - only complete messages
+ * Design principles:
+ * - Ethereal messages exist ONLY here, not in chat store
+ * - Chat store remains clean - only persisted messages
+ * - UI renders ethereal message as virtual node at tail
+ * - On finalize, caller handles persistence (server API)
+ * - Minimal state = minimal re-renders
+ * 
+ * Usage:
+ *   const { start, append, finalize } = useStreamingStore.getState();
+ *   start(parentId, speakerId);
+ *   append('Hello ');
+ *   append('world!');
+ *   const msg = finalize(); // Returns ethereal message for persistence
+ *   await serverApi.addMessage(msg.parentId, msg.content, msg.speakerId, true);
  */
 export const useStreamingStore = create<StreamingStore>((set, get) => ({
-  nodeId: null,
-  content: '',
-  isStreaming: false,
-
-  startStreaming: (parentId, speakerId) => {
-    const chatStore = useChatStore.getState();
-    
-    // Create placeholder node in chat tree
-    const nodeId = chatStore.addMessage(parentId, '', speakerId, true);
-    
-    set({
-      nodeId,
-      content: '',
-      isStreaming: true,
-    });
-    
-    return nodeId;
+  ethereal: null,
+  
+  // Computed getter
+  get isStreaming() {
+    return get().ethereal !== null;
   },
 
-  appendContent: (chunk) => {
-    set((state) => ({
-      content: state.content + chunk,
-    }));
+  start: (parentId, speakerId) => {
+    set({
+      ethereal: {
+        parentId,
+        speakerId,
+        content: '',
+        startedAt: Date.now(),
+      },
+    });
+  },
+
+  append: (chunk) => {
+    set((state) => {
+      if (!state.ethereal) return state;
+      return {
+        ethereal: {
+          ...state.ethereal,
+          content: state.ethereal.content + chunk,
+        },
+      };
+    });
+  },
+
+  setContent: (content) => {
+    set((state) => {
+      if (!state.ethereal) return state;
+      return {
+        ethereal: {
+          ...state.ethereal,
+          content,
+        },
+      };
+    });
   },
 
   finalize: () => {
-    const { nodeId, content } = get();
-    
-    if (nodeId && content) {
-      // Commit final content to chat store
-      useChatStore.getState().editMessage(nodeId, content);
-    }
-    
-    set({
-      nodeId: null,
-      content: '',
-      isStreaming: false,
-    });
+    const { ethereal } = get();
+    set({ ethereal: null });
+    return ethereal; // Return for caller to persist
   },
 
   cancel: () => {
-    const { nodeId } = get();
-    
-    if (nodeId) {
-      // Delete the incomplete node
-      useChatStore.getState().deleteMessage(nodeId);
-    }
-    
-    set({
-      nodeId: null,
-      content: '',
-      isStreaming: false,
-    });
+    set({ ethereal: null });
   },
 }));
 
+// ============ Selector Hooks (minimal re-renders) ============
+
 /**
- * Hook to get streaming content for a specific node.
- * Only re-renders when streaming content changes for THIS node.
+ * Subscribe to streaming state changes.
+ * Only re-renders when isStreaming changes.
  */
-export function useStreamingContent(nodeId: string): string | null {
-  return useStreamingStore((state) => 
-    state.nodeId === nodeId ? state.content : null
-  );
+export function useIsStreaming(): boolean {
+  return useStreamingStore((state) => state.ethereal !== null);
 }
 
 /**
- * Hook to check if a node is currently streaming.
+ * Get the ethereal message if streaming.
+ * Re-renders when ethereal changes.
  */
-export function useIsStreaming(nodeId: string): boolean {
-  return useStreamingStore((state) => state.nodeId === nodeId);
+export function useEtherealMessage(): EtherealMessage | null {
+  return useStreamingStore((state) => state.ethereal);
+}
+
+/**
+ * Get streaming content for a specific node ID.
+ * Returns content only if this node is the ethereal streaming node.
+ * Returns null if not streaming or if streaming a different node.
+ * 
+ * For ethereal messages, use nodeId '__ethereal__'.
+ */
+export function useStreamingContent(nodeId: string): string | null {
+  return useStreamingStore((state) => {
+    // Ethereal messages have special ID '__ethereal__'
+    if (nodeId === '__ethereal__' && state.ethereal) {
+      return state.ethereal.content;
+    }
+    // Regular nodes - never streaming with new ethereal approach
+    return null;
+  });
+}
+
+/**
+ * Check if we're streaming as a child of a specific parent.
+ * Useful for knowing where to render the ethereal message.
+ */
+export function useIsStreamingAfter(parentId: string): boolean {
+  return useStreamingStore((state) => state.ethereal?.parentId === parentId);
 }

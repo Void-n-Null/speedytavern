@@ -74,11 +74,12 @@ export const chats = {
     parentId: string | null,
     content: string,
     speakerId: string,
-    isBot: boolean
+    isBot: boolean,
+    createdAt?: number
   ) =>
     api<{ id: string; created_at: number }>(`/chats/${chatId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ parentId, content, speakerId, isBot }),
+      body: JSON.stringify({ parentId, content, speakerId, isBot, createdAt }),
     }),
 
   editMessage: (chatId: string, nodeId: string, content: string) =>
@@ -157,4 +158,10 @@ export const settings = {
 
 export const health = {
   check: () => api<{ status: string; timestamp: number }>('/health'),
+};
+
+// ============ Default Chat ============
+
+export const defaultChat = {
+  getId: () => api<{ id: string }>('/default-chat'),
 };

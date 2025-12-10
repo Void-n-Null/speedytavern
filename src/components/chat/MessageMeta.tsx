@@ -25,6 +25,11 @@ export const MessageMeta = memo(function MessageMeta({
   timestamp,
   isFirstInGroup,
 }: MessageMetaProps) {
+  // Debug: log when speaker or timestamp seems invalid
+  if (!speaker?.name || !timestamp) {
+    console.warn('[MessageMeta] Invalid data:', { speaker, timestamp, isFirstInGroup });
+  }
+  
   const typography = useTypographyConfig();
   const layout = useLayoutConfig();
   const avatarConfig = useAvatarConfig();
