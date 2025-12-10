@@ -1,0 +1,235 @@
+/* Message List Container */
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  overflow-y: auto;
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+/* Message Item */
+.message-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+  position: relative;
+}
+
+.message-item:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.message-item--user {
+  /* User messages could have right-aligned bubbles in future */
+  flex-direction: row;
+}
+
+.message-item--bot {
+  /* Bot messages stay left-aligned */
+  flex-direction: row;
+}
+
+/* Message Meta (avatar, name, timestamp) */
+.message-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 48px;
+}
+
+.message-meta--collapsed {
+  min-width: 48px;
+  height: 0;
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  color: white;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message-meta-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.message-speaker-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-timestamp {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Message Body */
+.message-body {
+  flex: 1;
+  min-width: 0; /* Allow text wrapping */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Message Content */
+.message-content {
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.message-content-edit {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.message-content-edit:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+/* Message Edit Actions */
+.message-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.message-edit-actions button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Message Actions */
+.message-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.message-item:hover .message-actions {
+  opacity: 1;
+}
+
+.message-action-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.message-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-action-btn--danger {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.message-action-btn--danger:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
+
+/* Branch Indicator - ON THE MESSAGE (Key improvement over SillyTavern!) */
+.message-branch-indicator {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, rgba(100, 108, 255, 0.15), rgba(100, 108, 255, 0.08));
+  border: 1px solid rgba(100, 108, 255, 0.3);
+  border-radius: 16px;
+  width: fit-content;
+  box-shadow: 0 2px 8px rgba(100, 108, 255, 0.1);
+}
+
+.branch-nav-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(100, 108, 255, 0.1);
+  color: #646cff;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.branch-nav-btn:hover:not(:disabled) {
+  background: rgba(100, 108, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.branch-nav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.branch-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.branch-counter {
+  font-size: 13px;
+  font-weight: 700;
+  color: #646cff;
+  min-width: 40px;
+  text-align: center;
+  padding: 0 4px;
+}
+
+/* Highlight message that has branches */
+.message-item:has(.message-branch-indicator) {
+  border-left: 3px solid rgba(100, 108, 255, 0.5);
+  padding-left: 13px;
+}
