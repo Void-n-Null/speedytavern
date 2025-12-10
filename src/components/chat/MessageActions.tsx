@@ -1,4 +1,7 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
+import type { CSSProperties } from 'react';
+import { useActionsConfig, useAnimationConfig } from '../../store/messageStyleStore';
+import { actionsSizeMap } from '../../types/messageStyle';
 
 interface MessageActionsProps {
   nodeId: string;
@@ -7,19 +10,14 @@ interface MessageActionsProps {
   onDelete: (nodeId: string) => void;
   onRegenerate?: (nodeId: string) => void;
   onBranch: (nodeId: string) => void;
+  onCopy?: (nodeId: string) => void;
 }
 
 /**
  * Action buttons for a message.
+ * Now fully customizable via messageStyleStore.
  * 
- * Responsibilities:
- * - Edit button
- * - Delete button (with confirmation)
- * - Regenerate (bot messages only)
- * - Create branch
- * 
- * Design: Always visible but subtle, not hover-dependent.
- * Accessibility: Touch-friendly, keyboard navigable.
+ * Visibility can be 'always' or 'hover' (CSS handles hover state).
  */
 export const MessageActions = memo(function MessageActions({
   nodeId,
@@ -28,7 +26,10 @@ export const MessageActions = memo(function MessageActions({
   onDelete,
   onRegenerate,
   onBranch,
+  onCopy,
 }: MessageActionsProps) {
+  const actionsConfig = useActionsConfig();
+  const animationConfig = useAnimationConfig();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleDelete = useCallback(() => {
@@ -37,7 +38,6 @@ export const MessageActions = memo(function MessageActions({
       setConfirmDelete(false);
     } else {
       setConfirmDelete(true);
-      // Auto-reset after 3 seconds
       setTimeout(() => setConfirmDelete(false), 3000);
     }
   }, [confirmDelete, nodeId, onDelete]);
@@ -45,46 +45,139 @@ export const MessageActions = memo(function MessageActions({
   const handleEdit = useCallback(() => onEdit(nodeId), [nodeId, onEdit]);
   const handleRegenerate = useCallback(() => onRegenerate?.(nodeId), [nodeId, onRegenerate]);
   const handleBranch = useCallback(() => onBranch(nodeId), [nodeId, onBranch]);
+  const handleCopy = useCallback(() => onCopy?.(nodeId), [nodeId, onCopy]);
+
+  // Container styles
+  const containerStyle = useMemo((): CSSProperties => {
+    const base: CSSProperties = {
+      display: 'flex',
+      gap: '4px',
+      alignItems: 'center',
+    };
+
+    // Position handling
+    if (actionsConfig.position === 'bottom') {
+      base.marginTop = '8px';
+    } else if (actionsConfig.position === 'overlay-corner') {
+      base.position = 'absolute';
+      base.top = '4px';
+      base.right = '4px';
+    }
+
+    // Visibility handling via opacity
+    if (actionsConfig.visibility === 'hover') {
+      base.opacity = 0;
+      if (animationConfig.enabled && animationConfig.hoverTransition !== 'none') {
+        base.transition = 'opacity 0.15s ease-in-out';
+      }
+    }
+
+    return base;
+  }, [actionsConfig.position, actionsConfig.visibility, animationConfig]);
+
+  // Button styles
+  const buttonStyle = useMemo((): CSSProperties => {
+    const size = actionsSizeMap[actionsConfig.size];
+    return {
+      width: size,
+      height: size,
+      minWidth: size,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 0,
+      border: 'none',
+      background: 'transparent',
+      cursor: 'pointer',
+      borderRadius: '4px',
+      fontSize: actionsConfig.style === 'text' ? '12px' : `calc(${size} * 0.5)`,
+    };
+  }, [actionsConfig.size, actionsConfig.style]);
+
+  // Render button content based on style
+  const renderButtonContent = (icon: string, text: string) => {
+    switch (actionsConfig.style) {
+      case 'text':
+        return text;
+      case 'icon-text':
+        return <>{icon} {text}</>;
+      case 'icon':
+      default:
+        return icon;
+    }
+  };
+
+  // Data attribute for CSS hover targeting
+  const visibilityClass = actionsConfig.visibility === 'hover' ? 'message-actions--hover' : '';
 
   return (
-    <div className="message-actions">
-      <button
-        className="message-action-btn"
-        onClick={handleEdit}
-        aria-label="Edit message"
-        title="Edit"
-      >
-        ✎
-      </button>
-      
-      {isBot && onRegenerate && (
+    <div 
+      className={`message-actions ${visibilityClass}`}
+      style={containerStyle}
+      data-visibility={actionsConfig.visibility}
+    >
+      {actionsConfig.showEdit && (
         <button
           className="message-action-btn"
+          style={buttonStyle}
+          onClick={handleEdit}
+          aria-label="Edit message"
+          title="Edit"
+        >
+          {renderButtonContent('✎', 'Edit')}
+        </button>
+      )}
+      
+      {actionsConfig.showCopy && onCopy && (
+        <button
+          className="message-action-btn"
+          style={buttonStyle}
+          onClick={handleCopy}
+          aria-label="Copy message"
+          title="Copy"
+        >
+          {renderButtonContent('📋', 'Copy')}
+        </button>
+      )}
+      
+      {actionsConfig.showRegenerate && isBot && onRegenerate && (
+        <button
+          className="message-action-btn"
+          style={buttonStyle}
           onClick={handleRegenerate}
           aria-label="Regenerate response"
           title="Regenerate"
         >
-          ↻
+          {renderButtonContent('↻', 'Regen')}
         </button>
       )}
       
-      <button
-        className="message-action-btn"
-        onClick={handleBranch}
-        aria-label="Create branch from here"
-        title="Branch"
-      >
-        ⑂
-      </button>
+      {actionsConfig.showBranch && (
+        <button
+          className="message-action-btn"
+          style={buttonStyle}
+          onClick={handleBranch}
+          aria-label="Create branch from here"
+          title="Branch"
+        >
+          {renderButtonContent('⑂', 'Branch')}
+        </button>
+      )}
       
-      <button
-        className={`message-action-btn ${confirmDelete ? 'message-action-btn--danger' : ''}`}
-        onClick={handleDelete}
-        aria-label={confirmDelete ? 'Confirm delete' : 'Delete message'}
-        title={confirmDelete ? 'Click again to confirm' : 'Delete'}
-      >
-        {confirmDelete ? '✓' : '×'}
-      </button>
+      {actionsConfig.showDelete && (
+        <button
+          className={`message-action-btn ${confirmDelete ? 'message-action-btn--danger' : ''}`}
+          style={{
+            ...buttonStyle,
+            color: confirmDelete ? '#ff4444' : undefined,
+          }}
+          onClick={handleDelete}
+          aria-label={confirmDelete ? 'Confirm delete' : 'Delete message'}
+          title={confirmDelete ? 'Click again to confirm' : 'Delete'}
+        >
+          {renderButtonContent(confirmDelete ? '✓' : '×', confirmDelete ? 'Confirm' : 'Delete')}
+        </button>
+      )}
     </div>
   );
 });

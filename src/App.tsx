@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageList } from './components/chat';
+import { MessageStyleSettings } from './components/settings/MessageStyleSettings';
 import { generateDemoData } from './utils/generateDemoData';
-import { useStreamingStore } from './store/streamingStore';
-import { useChatStore } from './store/chatStore';
+import { useStreamingDemo } from './hooks/useStreamingDemo';
 
 /**
  * Root application component.
@@ -10,13 +10,49 @@ import { useChatStore } from './store/chatStore';
  * Single responsibility: App shell layout and initialization.
  */
 export function App() {
+  const [showSettings, setShowSettings] = useState(false);
+
   useEffect(() => {
     generateDemoData();
   }, []);
 
   return (
-    <div className="app">
-      <MessageList />
+    <div className="app" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+        <MessageList />
+      </div>
+      
+      {showSettings && (
+        <div style={{
+          width: 320,
+          height: '100vh',
+          overflow: 'auto',
+          borderLeft: '1px solid #333',
+          padding: 16,
+          background: '#1a1a1a',
+        }}>
+          <MessageStyleSettings />
+        </div>
+      )}
+      
+      <button
+        onClick={() => setShowSettings(!showSettings)}
+        style={{
+          position: 'fixed',
+          top: 16,
+          right: 16,
+          padding: '8px 12px',
+          background: '#333',
+          border: 'none',
+          borderRadius: 4,
+          color: '#fff',
+          cursor: 'pointer',
+          zIndex: 1000,
+        }}
+      >
+        {showSettings ? 'Hide Settings' : 'Settings'}
+      </button>
+      
       <StreamingDemo />
     </div>
   );
@@ -27,55 +63,7 @@ export function App() {
  * Press 'S' to start streaming, 'Enter' to finalize, 'Escape' to cancel.
  */
 function StreamingDemo() {
-  const { isStreaming, startStreaming, appendContent, finalize, cancel } = useStreamingStore();
-  const tailId = useChatStore((s) => s.tail_id);
-  const speakers = useChatStore((s) => s.speakers);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 'S' to start streaming
-      if (e.key === 's' && !isStreaming && !e.ctrlKey && !e.metaKey) {
-        if (!tailId) return;
-        
-        // Find bot speaker
-        const botSpeaker = Array.from(speakers.values()).find((s) => !s.is_user);
-        if (!botSpeaker) return;
-
-        startStreaming(tailId, botSpeaker.id);
-        
-        // Simulate streaming tokens
-        const text = "This is a streaming message that appears token by token to test that only MessageContent re-renders, not the entire message tree. Watch react-scan to verify minimal re-renders! ";
-        let index = 0;
-        
-        const interval = setInterval(() => {
-          if (index < text.length) {
-            appendContent(text[index]);
-            index++;
-          } else {
-            clearInterval(interval);
-          }
-        }, 30);
-        
-        // Store interval for cleanup
-        (window as any).__streamingInterval = interval;
-      }
-      
-      // Enter to finalize
-      if (e.key === 'Enter' && isStreaming) {
-        clearInterval((window as any).__streamingInterval);
-        finalize();
-      }
-      
-      // Escape to cancel
-      if (e.key === 'Escape' && isStreaming) {
-        clearInterval((window as any).__streamingInterval);
-        cancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isStreaming, tailId, speakers, startStreaming, appendContent, finalize, cancel]);
+  const { isStreaming } = useStreamingDemo();
 
   return (
     <div style={{
