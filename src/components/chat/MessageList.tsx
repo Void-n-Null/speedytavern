@@ -6,6 +6,10 @@ import { MessageItem } from './MessageItem';
 import { EtherealMessage } from './EtherealMessage';
 import { pickRandomMessage } from '../../utils/generateDemoData';
 
+// Lazy rendering config - render last N messages, load more on scroll
+const INITIAL_RENDER_LIMIT = 100;
+const LOAD_MORE_BATCH = 50;
+
 /**
  * Message list container with optimizations.
  * 
@@ -39,7 +43,14 @@ export function MessageList() {
     active: boolean;
     direction: 'prev' | 'next';
     parentId: string;  // Parent of branch point - messages after this should animate
+    oldSiblingId: string;  // The sibling we're switching AWAY from - only animate when NOT in path
+    id: number;  // Unique ID to prevent animation restart on re-renders
   } | null>(null);
+  const animationIdCounter = useRef(0);
+  
+  // Lazy rendering - only render last N messages, load more on scroll up
+  const [renderLimit, setRenderLimit] = useState(INITIAL_RENDER_LIMIT);
+  const lazyRenderPathRef = useRef<{ length: number; firstId: string | null }>({ length: 0, firstId: null });
   
   // Get animation settings
   const branchSwitchAnimation = useMessageStyleStore((s) => s.config.animation.branchSwitchAnimation);
@@ -208,6 +219,40 @@ export function MessageList() {
     }).filter((item): item is NonNullable<typeof item> => item !== null);
   }, [activePath.nodeIds, nodes, speakers]);
 
+  // Reset render limit when branch changes (path changes significantly)
+  useEffect(() => {
+    const pathLength = activePath.nodeIds.length;
+    const firstId = activePath.nodeIds[0] ?? null;
+    const prev = lazyRenderPathRef.current;
+    
+    // Detect branch switch: first node changed (different branch) or big length change
+    const branchChanged = firstId !== prev.firstId;
+    const significantLengthChange = Math.abs(pathLength - prev.length) > 1;
+    
+    if (branchChanged || significantLengthChange) {
+      setRenderLimit(INITIAL_RENDER_LIMIT);
+    }
+    lazyRenderPathRef.current = { length: pathLength, firstId };
+  }, [activePath.nodeIds]);
+
+  // Compute which messages to actually render (last N of pathInfo)
+  const visiblePathInfo = useMemo(() => {
+    if (pathInfo.length <= renderLimit) {
+      return { items: pathInfo, hiddenCount: 0, startIndex: 0 };
+    }
+    const startIndex = pathInfo.length - renderLimit;
+    return {
+      items: pathInfo.slice(startIndex),
+      hiddenCount: startIndex,
+      startIndex,
+    };
+  }, [pathInfo, renderLimit]);
+
+  // Load more messages when clicking the "load more" button
+  const handleLoadMore = useCallback(() => {
+    setRenderLimit(prev => prev + LOAD_MORE_BATCH);
+  }, []);
+
   // Stable callbacks - use refs to avoid re-creating on every render
   const handleEdit = useCallback((nodeId: string, content: string) => {
     serverEditMessageRef.current(nodeId, content);
@@ -247,9 +292,10 @@ export function MessageList() {
       };
       skipAutoScrollRef.current = true;
       
-      // Trigger animation if enabled
+      // Trigger animation if enabled - nodeId is the sibling we're switching away from
       if (animationsEnabled && branchSwitchAnimation !== 'none') {
-        setBranchAnimation({ active: true, direction: 'next', parentId: node.parent_id });
+        animationIdCounter.current += 1;
+        setBranchAnimation({ active: true, direction: 'next', parentId: node.parent_id, oldSiblingId: nodeId, id: animationIdCounter.current });
       }
     }
     
@@ -304,9 +350,10 @@ export function MessageList() {
       // Prevent auto-scroll from interfering
       skipAutoScrollRef.current = true;
       
-      // Trigger animation if enabled
+      // Trigger animation if enabled - nodeId is the sibling we're switching away from
       if (animationsEnabled && branchSwitchAnimation !== 'none') {
-        setBranchAnimation({ active: true, direction, parentId: node.parent_id });
+        animationIdCounter.current += 1;
+        setBranchAnimation({ active: true, direction, parentId: node.parent_id, oldSiblingId: nodeId, id: animationIdCounter.current });
       }
     }
 
@@ -447,6 +494,10 @@ export function MessageList() {
     if (!branchAnimation?.active) return false;
     if (branchSwitchAnimation === 'none') return false;
     
+    // Only animate if we've actually switched (old sibling is NOT in path anymore)
+    // This prevents animating the old branch before the optimistic update
+    if (activePath.nodeIds.includes(branchAnimation.oldSiblingId)) return false;
+    
     // Find the index of the parent in the path
     const parentIndex = activePath.nodeIds.indexOf(branchAnimation.parentId);
     // Animate messages AFTER the parent (the branch point and everything below)
@@ -492,10 +543,23 @@ export function MessageList() {
       
       {/* Message container */}
       <div className="message-list" ref={containerRef}>
-        {pathInfo.map(({ node, speaker, siblingCount, currentSiblingIndex, isFirstInGroup }, index) => {
-          const animClass = getAnimationClass(index);
+        {/* Load more indicator - shown when there are hidden messages */}
+        {visiblePathInfo.hiddenCount > 0 && (
+          <div className="message-list-load-more" onClick={handleLoadMore}>
+            ↑ Load {Math.min(LOAD_MORE_BATCH, visiblePathInfo.hiddenCount)} more messages ({visiblePathInfo.hiddenCount} hidden)
+          </div>
+        )}
+        
+        {visiblePathInfo.items.map(({ node, speaker, siblingCount, currentSiblingIndex, isFirstInGroup }, localIndex) => {
+          // Convert local index to global index for animation calculations
+          const globalIndex = visiblePathInfo.startIndex + localIndex;
+          const animClass = getAnimationClass(globalIndex);
+          // Use animation ID in key to ensure animation only runs once per switch
+          // When animClass is set, key includes animation ID so element is fresh
+          // When animClass is cleared, key reverts to just node.id (stable)
+          const key = animClass && branchAnimation ? `${node.id}-anim-${branchAnimation.id}` : node.id;
           return (
-            <div key={node.id} className={animClass || undefined}>
+            <div key={key} className={animClass || undefined}>
               <MessageItem
                 node={node}
                 speaker={speaker}

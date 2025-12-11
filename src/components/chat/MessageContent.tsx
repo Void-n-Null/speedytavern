@@ -1,8 +1,8 @@
 import { memo, useMemo } from 'react';
 import type { CSSProperties } from 'react';
-import { useStreamingContent } from '../../store/streamingStore';
 import { useTypographyConfig, useEditConfig } from '../../store/messageStyleStore';
 import { fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
+import { parseMarkdown } from '../../utils/streamingMarkdown';
 
 interface MessageContentProps {
   nodeId: string;
@@ -13,16 +13,13 @@ interface MessageContentProps {
 }
 
 /**
- * Renders message text content.
- * Now fully customizable via messageStyleStore.
+ * Renders message text content with markdown support.
  * 
- * Streaming optimization:
- * - Subscribes to streaming store ONLY for its own nodeId
- * - When streaming, renders from streaming store (updates every chunk)
- * - When not streaming, renders from props (memoized)
+ * For static (non-streaming) messages only.
+ * Streaming messages use StreamingMarkdown component for ref-based updates.
  */
 export const MessageContent = memo(function MessageContent({
-  nodeId,
+  nodeId: _nodeId,
   content,
   isBot,
   isEditing = false,
@@ -31,11 +28,8 @@ export const MessageContent = memo(function MessageContent({
   const typography = useTypographyConfig();
   const editConfig = useEditConfig();
   
-  // Only subscribes if this node is streaming - selector returns null otherwise
-  const streamingContent = useStreamingContent(nodeId);
-  
-  // Use streaming content if available, otherwise use prop
-  const displayContent = streamingContent ?? content;
+  // Parse markdown for static content (memoized)
+  const htmlContent = useMemo(() => parseMarkdown(content), [content]);
 
   // Compute text color based on message type
   const textColor = useMemo(() => {
@@ -73,12 +67,15 @@ export const MessageContent = memo(function MessageContent({
     return base;
   }, [contentStyle, editConfig.style]);
 
+  // Suppress unused variable warning - kept for API consistency
+  void _nodeId;
+
   if (isEditing) {
     return (
       <textarea
         className="message-content-edit"
         style={editStyle}
-        value={displayContent}
+        value={content}
         onChange={(e) => onEditChange?.(e.target.value)}
         autoFocus
       />
@@ -86,9 +83,10 @@ export const MessageContent = memo(function MessageContent({
   }
 
   return (
-    <div className="message-content" style={contentStyle}>
-      {displayContent}
-      {streamingContent !== null && <span className="streaming-cursor">▊</span>}
-    </div>
+    <div 
+      className="message-content" 
+      style={contentStyle}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
   );
 });

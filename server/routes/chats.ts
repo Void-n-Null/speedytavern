@@ -4,9 +4,10 @@ import {
   getCachedChat,
   setCachedChat,
   invalidateChatCache,
+  getCachedSpeaker,
   type CachedChat,
 } from '../cache';
-import type { ChatNode } from '../../src/types/chat';
+import type { ChatNode, Speaker } from '../../src/types/chat';
 
 export const chatRoutes = new Hono();
 
@@ -42,6 +43,62 @@ chatRoutes.get('/', (c) => {
   return c.json(chats);
 });
 
+interface SpeakerRow {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  color: string | null;
+  is_user: number;
+}
+
+// Helper to convert nodes to compact wire format (dictionary-encoded speaker_id)
+// Also fetches and includes the relevant speakers
+function toWireFormat(nodes: ChatNode[]) {
+  // Build speaker dictionary from unique speaker_ids
+  const speakerSet = new Set<string>();
+  for (const node of nodes) {
+    speakerSet.add(node.speaker_id);
+  }
+  const speakerIds = Array.from(speakerSet);
+  const speakerIndex = new Map(speakerIds.map((id, i) => [id, i]));
+  
+  // Fetch speaker data (check cache first, then DB)
+  const speakers: Speaker[] = speakerIds.map(id => {
+    // Try cache first
+    const cached = getCachedSpeaker(id);
+    if (cached) return cached;
+    
+    // Fall back to DB
+    const row = prepare<SpeakerRow>('SELECT * FROM speakers WHERE id = ?').get(id) as SpeakerRow | null;
+    if (row) {
+      return {
+        id: row.id,
+        name: row.name,
+        avatar_url: row.avatar_url ?? undefined,
+        color: row.color ?? undefined,
+        is_user: Boolean(row.is_user),
+      };
+    }
+    // Fallback if speaker not found
+    return { id, name: 'Unknown', is_user: false };
+  });
+  
+  // Convert nodes to compact format
+  const wireNodes = nodes.map(n => ({
+    id: n.id,
+    parent_id: n.parent_id,
+    child_ids: n.child_ids,
+    active_child_index: n.active_child_index,
+    s: speakerIndex.get(n.speaker_id)!, // index instead of full UUID
+    message: n.message,
+    is_bot: n.is_bot,
+    created_at: n.created_at,
+    updated_at: n.updated_at,
+  }));
+  
+  return { speakerIds, speakers, nodes: wireNodes };
+}
+
 // ============ Get single chat with all nodes ============
 chatRoutes.get('/:id', (c) => {
   const chatId = c.req.param('id');
@@ -49,10 +106,13 @@ chatRoutes.get('/:id', (c) => {
   // Check cache first
   let cached = getCachedChat(chatId);
   if (cached) {
+    const { speakerIds, speakers, nodes: wireNodes } = toWireFormat(Array.from(cached.nodes.values()));
     return c.json({
       id: cached.id,
       name: cached.name,
-      nodes: Array.from(cached.nodes.values()),
+      speakerIds,
+      speakers,
+      nodes: wireNodes,
       rootId: cached.rootId,
       tailId: cached.tailId,
     });
@@ -109,10 +169,14 @@ chatRoutes.get('/:id', (c) => {
   };
   setCachedChat(cached);
   
+  // Return compact wire format with speakers
+  const { speakerIds, speakers, nodes: wireNodes } = toWireFormat(Array.from(nodes.values()));
   return c.json({
     id: chat.id,
     name: chat.name,
-    nodes: Array.from(nodes.values()),
+    speakerIds,
+    speakers,
+    nodes: wireNodes,
     rootId,
     tailId,
   });

@@ -1,79 +1,157 @@
 import { memo, useMemo } from 'react';
-import { useEtherealMessage } from '../../store/streamingStore';
+import type { CSSProperties } from 'react';
+import { useEtherealMeta } from '../../store/streamingStore';
 import { useServerChat } from '../../hooks/queries';
-import { MessageItem } from './MessageItem';
-import type { ChatNode, Speaker } from '../../types/chat';
+import { useLayoutConfig, useTypographyConfig } from '../../store/messageStyleStore';
+import { gapMap, paddingMap, fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
+import { MessageMeta } from './MessageMeta';
+import { StreamingMarkdown } from './StreamingMarkdown';
+import type { Speaker } from '../../types/chat';
 
 /**
  * Renders the ethereal (streaming) message at the tail of the chat.
  * 
- * Reuses MessageItem with a synthetic node created from ethereal data.
+ * Uses ref-based StreamingMarkdown for high-performance DOM updates.
+ * Only re-renders when streaming starts/stops - content updates bypass React.
  * Auto-hides when persistent version exists (seamless swap).
+ * 
+ * Matches MessageItem's layout and styling for visual consistency.
  */
 export const EtherealMessage = memo(function EtherealMessage() {
-  const ethereal = useEtherealMessage();
+  const meta = useEtherealMeta();
   const { speakers, nodes, tailId } = useServerChat();
+  const layout = useLayoutConfig();
+  const typography = useTypographyConfig();
   
   // Check if persistent version already exists
-  // If the tail node has the same parent and speaker as ethereal, it's the persisted version
   const persistentExists = useMemo(() => {
-    if (!ethereal || !tailId) return false;
+    if (!meta || !tailId) return false;
     const tailNode = nodes.get(tailId);
     if (!tailNode) return false;
     
-    // If tail's parent matches ethereal's parent and speaker matches, persistent version exists
-    return tailNode.parent_id === ethereal.parentId && 
-           tailNode.speaker_id === ethereal.speakerId;
-  }, [ethereal, tailId, nodes]);
+    return tailNode.parent_id === meta.parentId && 
+           tailNode.speaker_id === meta.speakerId;
+  }, [meta, tailId, nodes]);
   
-  // Create synthetic node from ethereal data
-  const syntheticNode: ChatNode | null = useMemo(() => {
-    if (!ethereal) return null;
-    return {
-      id: '__ethereal__',
-      parent_id: ethereal.parentId,
-      child_ids: [],
-      active_child_index: null,
-      speaker_id: ethereal.speakerId,
-      message: ethereal.content,
-      is_bot: true,
-      created_at: ethereal.startedAt,
-    };
-  }, [ethereal]);
-  
+  // Get the actual speaker from the speakers map
   const speaker: Speaker | null = useMemo(() => {
-    if (!ethereal) return null;
-    return speakers.get(ethereal.speakerId) ?? {
-      id: ethereal.speakerId,
+    if (!meta) return null;
+    const foundSpeaker = speakers.get(meta.speakerId);
+    if (foundSpeaker) return foundSpeaker;
+    
+    // Fallback if speaker not found (shouldn't happen normally)
+    return {
+      id: meta.speakerId,
       name: 'Bot',
       is_user: false,
       color: '#9b59b6',
     };
-  }, [ethereal, speakers]);
+  }, [meta, speakers]);
   
-  // Early return if not streaming OR persistent version already exists
-  if (!syntheticNode || !speaker || persistentExists) return null;
+  // Determine alignment based on config (same as MessageItem)
+  // Use fallback values when speaker is null to ensure hooks are always called
+  const isUser = speaker?.is_user ?? false;
+  const alignment = isUser ? layout.userAlignment : layout.botAlignment;
+  const alignmentClass = isUser ? 'message-item--user' : 'message-item--bot';
+
+  // Container styles (same as MessageItem)
+  // ALL useMemo hooks must be called before any conditional returns
+  const containerStyle: CSSProperties = useMemo(() => {
+    const base: CSSProperties = {
+      display: 'flex',
+      position: 'relative',
+      marginBottom: gapMap[layout.messageGap],
+    };
+
+    switch (layout.metaPosition) {
+      case 'left':
+        base.flexDirection = 'row';
+        base.alignItems = 'flex-start';
+        break;
+      case 'above':
+        base.flexDirection = 'column';
+        break;
+      case 'inline':
+        base.flexDirection = 'column';
+        break;
+    }
+
+    if (alignment === 'right') {
+      base.justifyContent = 'flex-end';
+    }
+
+    return base;
+  }, [layout.metaPosition, layout.messageGap, alignment]);
+
+  // Body styles (same as MessageItem)
+  const bodyStyle: CSSProperties = useMemo(() => {
+    const base: CSSProperties = {
+      position: 'relative',
+      maxWidth: `${layout.bubbleMaxWidth}%`,
+    };
+
+    switch (layout.messageStyle) {
+      case 'bubble':
+        base.backgroundColor = isUser ? '#2d5a7b' : '#3d3d3d';
+        base.borderRadius = '12px';
+        base.padding = paddingMap[layout.bubblePadding];
+        break;
+      case 'bordered':
+        base.border = '1px solid #444';
+        base.borderRadius = '8px';
+        base.padding = paddingMap[layout.bubblePadding];
+        break;
+      case 'flat':
+        base.padding = paddingMap[layout.bubblePadding];
+        break;
+    }
+
+    return base;
+  }, [layout.messageStyle, layout.bubbleMaxWidth, layout.bubblePadding, isUser]);
+
+  // Content styles for streaming markdown
+  const contentStyle: CSSProperties = useMemo(() => ({
+    fontSize: fontSizeMap[typography.fontSize],
+    lineHeight: lineHeightMap[typography.lineHeight],
+    fontFamily: fontFamilyMap[typography.fontFamily],
+    fontWeight: fontWeightMap[typography.fontWeight],
+    color: typography.botTextColor || typography.textColor,
+  }), [typography]);
   
-  // No-op handlers for ethereal message (can't edit/delete/etc a streaming message)
-  const noopSingle = (_nodeId: string) => {};
-  const noopEdit = (_nodeId: string, _content: string) => {};
-  const noopSwitch = (_nodeId: string, _direction: 'prev' | 'next') => {};
+  // Early return AFTER all hooks have been called
+  if (!meta || !speaker || persistentExists) return null;
   
   return (
-    <div className="message-ethereal-wrapper" style={{ opacity: 0.9 }}>
-      <MessageItem
-        node={syntheticNode}
-        speaker={speaker}
-        isFirstInGroup={true}
-        siblingCount={1}
-        currentSiblingIndex={0}
-        onEdit={noopEdit}
-        onDelete={noopSingle}
-        onRegenerate={noopSingle}
-        onBranch={noopSingle}
-        onSwitchBranch={noopSwitch}
-        onCreateBranch={noopSingle}
-      />
+    <div 
+      className={`message-item ${alignmentClass}`}
+      style={containerStyle}
+      data-node-id="__ethereal__"
+    >
+      {/* Meta section - avatar, name, timestamp (same as MessageItem) */}
+      {(layout.metaPosition === 'left' || layout.metaPosition === 'above') && (
+        <MessageMeta
+          speaker={speaker}
+          timestamp={meta.startedAt}
+          isFirstInGroup={true}
+        />
+      )}
+      
+      <div className="message-body" style={bodyStyle}>
+        {/* Inline meta (name before text) */}
+        {layout.metaPosition === 'inline' && (
+          <MessageMeta
+            speaker={speaker}
+            timestamp={meta.startedAt}
+            isFirstInGroup={true}
+          />
+        )}
+        
+        {/* Streaming content - ref-based, no re-renders on chunk updates */}
+        <StreamingMarkdown 
+          className="message-content streaming"
+          style={contentStyle}
+        />
+      </div>
     </div>
   );
 });

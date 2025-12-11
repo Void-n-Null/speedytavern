@@ -63,11 +63,11 @@ export function seedDemoDataIfEmpty(): string | null {
     prepare('INSERT INTO chats (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
       .run(chatId, 'Demo Chat', now, now);
     
-    // Create speakers
-    prepare('INSERT INTO speakers (id, name, is_user, color) VALUES (?, ?, ?, ?)')
-      .run(userId, 'User', 1, '#3498db');
-    prepare('INSERT INTO speakers (id, name, is_user, color) VALUES (?, ?, ?, ?)')
-      .run(botId, 'Seraphina', 0, '#9b59b6');
+    // Create speakers with avatar URLs
+    prepare('INSERT INTO speakers (id, name, is_user, color, avatar_url) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, 'User', 1, '#3498db', 'https://api.dicebear.com/7.x/avataaars/svg?seed=user');
+    prepare('INSERT INTO speakers (id, name, is_user, color, avatar_url) VALUES (?, ?, ?, ?, ?)')
+      .run(botId, 'Seraphina', 0, '#9b59b6', 'https://api.dicebear.com/7.x/avataaars/svg?seed=seraphina');
     
     // Build nodes in memory first
     const nodes: ChatNode[] = [];

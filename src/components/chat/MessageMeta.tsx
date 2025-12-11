@@ -146,15 +146,18 @@ export const MessageMeta = memo(function MessageMeta({
 
   // Determine if avatar should show
   const shouldShowAvatar = (): boolean => {
+    // If grouping is disabled, treat all messages as first in group for avatar purposes
+    const effectiveIsFirst = !layout.groupConsecutive || isFirstInGroup;
+    
     switch (avatarConfig.visibility) {
       case 'always':
         return true;
       case 'first-in-group':
-        return isFirstInGroup;
+        return effectiveIsFirst;
       case 'never':
         return false;
       default:
-        return isFirstInGroup;
+        return effectiveIsFirst;
     }
   };
 

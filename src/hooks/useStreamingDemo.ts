@@ -24,7 +24,7 @@ export function useStreamingDemo() {
       }
       
       // Check current streaming state directly from store
-      const currentlyStreaming = useStreamingStore.getState().ethereal !== null;
+      const currentlyStreaming = useStreamingStore.getState().meta !== null;
       
       // 'S' to start streaming
       if (e.key === 's' && !currentlyStreaming && !e.ctrlKey && !e.metaKey) {
@@ -32,7 +32,7 @@ export function useStreamingDemo() {
         if (!started) return;
         
         // Simulate streaming tokens
-        const text = "This is a streaming message that appears token by token. The ethereal message exists only in streaming store until finalized. Press Enter to persist! ";
+        const text = "# This is a streaming message! \n that appears token by token. The ethereal message exists only in streaming store until finalized. Press Enter to persist! ";
         let index = 0;
         
         // Clear any existing interval

@@ -6,7 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { queryKeys } from '../../lib/queryClient';
-import { chats, defaultChat, speakers, type ChatMeta, type ChatFull } from '../../api/client';
+import { chats, defaultChat, type ChatMeta, type ChatFull } from '../../api/client';
 import type { ChatNode, Speaker } from '../../types/chat';
 
 // ============ Queries ============
@@ -361,15 +361,8 @@ export function useServerChat() {
   
   const { data: chat, isLoading: isLoadingChat, error: chatError } = useChat(chatId);
   
-  // Fetch speakers
-  const speakersQuery = useQuery({
-    queryKey: queryKeys.speakers.list(),
-    queryFn: () => speakers.list(),
-    staleTime: 5 * 60 * 1000,
-  });
-  
-  const speakersData = speakersQuery.data;
-  const error = chatError || speakersQuery.error;
+  // Speakers now come from chat response - no separate fetch needed!
+  const error = chatError;
   
   // Compute nodes Map for efficient lookup
   const nodes = useMemo(() => {
@@ -380,14 +373,14 @@ export function useServerChat() {
     return map;
   }, [chat?.nodes]);
   
-  // Compute speakers Map for efficient lookup
+  // Compute speakers Map from chat response
   const speakersMap = useMemo(() => {
     const map = new Map<string, Speaker>();
-    if (speakersData) {
-      speakersData.forEach(s => map.set(s.id, s));
+    if (chat?.speakers) {
+      chat.speakers.forEach(s => map.set(s.id, s));
     }
     return map;
-  }, [speakersData]);
+  }, [chat?.speakers]);
   
   // Find root node (node with no parent)
   const rootId = useMemo(() => {
@@ -434,7 +427,7 @@ export function useServerChat() {
   return {
     chatId,
     chat,
-    isLoading: isLoadingId || isLoadingChat || speakersQuery.isLoading,
+    isLoading: isLoadingId || isLoadingChat,
     error,
     
     // Computed data (replaces Zustand)

@@ -7,16 +7,20 @@ import './components/chat/chat.css';
 import { App } from './App';
 import { queryClient } from './lib/queryClient';
 
-// Enable react-scan in development
+// Enable react-scan for render visualization
 // Disabled on Firefox due to severe performance issues (github.com/aidenybai/react-scan/issues/400)
 // Set VITE_DISABLE_SCAN=1 to disable manually
+// Set VITE_ENABLE_SCAN_PROD=1 to enable in production builds
 const isFirefox = navigator.userAgent.includes('Firefox');
-if (import.meta.env.DEV && !import.meta.env.VITE_DISABLE_SCAN && !isFirefox) {
+const enableInProd = import.meta.env.VITE_ENABLE_SCAN_PROD === '1';
+const shouldEnable = (import.meta.env.DEV || enableInProd) && !import.meta.env.VITE_DISABLE_SCAN && !isFirefox;
+
+if (shouldEnable) {
   scan({
     enabled: true,
     log: true,
   });
-} else if (isFirefox && import.meta.env.DEV) {
+} else if (isFirefox) {
   console.log('[react-scan] Disabled on Firefox due to performance issues');
 }
 

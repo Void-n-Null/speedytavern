@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { useStreamingStore, useIsStreaming, useEtherealMessage } from '../store/streamingStore';
+import { useStreamingStore, useIsStreaming, useEtherealMeta, getStreamingContent } from '../store/streamingStore';
 import { useServerChat } from './queries';
 import type { Speaker } from '../types/chat';
 
@@ -55,7 +55,7 @@ export interface StreamingAPI {
  */
 export function useStreaming(): StreamingAPI {
   const isStreaming = useIsStreaming();
-  const ethereal = useEtherealMessage();
+  const meta = useEtherealMeta();
   
   const { chatId, addMessage, speakers, tailId } = useServerChat();
   
@@ -70,7 +70,7 @@ export function useStreaming(): StreamingAPI {
   tailIdRef.current = tailId;
   
   // Get speaker object for current ethereal message
-  const currentSpeaker = ethereal ? speakers.get(ethereal.speakerId) ?? null : null;
+  const currentSpeaker = meta ? speakers.get(meta.speakerId) ?? null : null;
   
   const start = useCallback((options: StreamingOptions = {}): boolean => {
     const { start: storeStart } = useStreamingStore.getState();
@@ -117,18 +117,16 @@ export function useStreaming(): StreamingAPI {
   }, []);
   
   const finalize = useCallback(async (): Promise<boolean> => {
-    const { ethereal, cancel } = useStreamingStore.getState();
+    const { meta, cancel } = useStreamingStore.getState();
     const currentSpeakers = speakersRef.current;
+    const content = getStreamingContent();
     
-    // Get ethereal data WITHOUT clearing it yet
-    const etherealMsg = ethereal;
-    
-    if (!etherealMsg) {
+    if (!meta) {
       console.warn('[useStreaming] Finalize called but no ethereal message');
       return false;
     }
     
-    if (!etherealMsg.content.trim()) {
+    if (!content.trim()) {
       console.warn('[useStreaming] Finalize called but message is empty');
       cancel(); // Clear empty message
       return false;
@@ -141,16 +139,16 @@ export function useStreaming(): StreamingAPI {
     }
     
     // Determine if bot message
-    const speaker = currentSpeakers.get(etherealMsg.speakerId);
+    const speaker = currentSpeakers.get(meta.speakerId);
     const isBot = speaker ? !speaker.is_user : true;
     
     try {
       await addMessageRef.current(
-        etherealMsg.parentId,
-        etherealMsg.content,
-        etherealMsg.speakerId,
+        meta.parentId,
+        content,
+        meta.speakerId,
         isBot,
-        etherealMsg.startedAt  // Pass the actual start time for accurate timestamps
+        meta.startedAt  // Pass the actual start time for accurate timestamps
       );
       
       // Only clear ethereal AFTER mutation succeeds and cache is updated
@@ -175,7 +173,7 @@ export function useStreaming(): StreamingAPI {
   
   return {
     isStreaming,
-    content: ethereal?.content ?? '',
+    content: getStreamingContent(),
     speaker: currentSpeaker,
     start,
     append,
