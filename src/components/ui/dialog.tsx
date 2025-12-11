@@ -16,6 +16,7 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       'fixed inset-0 z-50 bg-black/80 backdrop-blur-sm',
+      'focus:outline-none',
       'data-[state=open]:animate-in data-[state=closed]:animate-out',
       'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className
@@ -33,10 +34,14 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      // Disable Radix's focus management - suspected perf bottleneck
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      onCloseAutoFocus={(e) => e.preventDefault()}
       className={cn(
         'fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2',
         'max-w-5xl max-h-[85vh]',
         'bg-zinc-950 border border-zinc-800/50 rounded-2xl shadow-2xl',
+        'focus:outline-none focus:ring-0',
         'duration-200',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
@@ -51,7 +56,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Close className={cn(
         'absolute right-4 top-4 p-2 rounded-lg',
         'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80',
-        'transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-700'
+        'transition-colors focus:outline-none'
       )}>
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>

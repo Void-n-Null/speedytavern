@@ -13,7 +13,7 @@ import {
 
 // ============ Type Definitions ============
 
-export type ControlType = 'select' | 'switch' | 'slider' | 'color' | 'text';
+export type ControlType = 'select' | 'switch' | 'slider' | 'color' | 'text' | 'font-upload';
 
 export interface SelectOption {
   value: string;
@@ -128,10 +128,27 @@ export const interfaceDesignSections: SectionDefinition[] = [
             label: 'Font Family',
             description: 'Typeface used for message text',
             options: [
-              { value: 'system', label: 'System' },
-              { value: 'mono', label: 'Monospace' },
-              { value: 'serif', label: 'Serif' },
+              { value: 'open-sans', label: 'Open Sans' },
+              { value: 'red-hat-mono', label: 'Red Hat Mono' },
+              { value: 'source-code-pro', label: 'Source Code Pro' },
+              { value: 'poppins', label: 'Poppins' },
+              { value: 'oswald', label: 'Oswald' },
+              { value: 'custom', label: 'Custom Font' },
             ],
+          },
+          {
+            type: 'select',
+            key: 'typography.customFontId',
+            label: 'Custom Font',
+            description: 'Select an uploaded font',
+            options: [], // Populated dynamically from server
+            showWhen: { key: 'typography.fontFamily', value: 'custom' },
+          },
+          {
+            type: 'font-upload',
+            key: 'typography.fontUpload',
+            label: 'Manage Fonts',
+            description: 'Upload custom font files',
           },
           {
             type: 'select',
@@ -618,6 +635,82 @@ export const interfaceDesignSections: SectionDefinition[] = [
             label: 'Overlay Opacity',
             description: 'Lower = darker overlay',
             min: 0, max: 100, step: 5, suffix: '%',
+          },
+        ],
+      },
+      {
+        title: 'Message List Background',
+        description: 'Distinct background for the message list area',
+        controls: [
+          {
+            type: 'switch',
+            key: 'messageListBackground.enabled',
+            label: 'Enable',
+            description: 'Show a separate background for the message list',
+          },
+          {
+            type: 'select',
+            key: 'messageListBackground.type',
+            label: 'Type',
+            description: 'Background style for message list',
+            showWhen: { key: 'messageListBackground.enabled', value: true },
+            options: [
+              { value: 'color', label: 'Solid Color' },
+              { value: 'gradient', label: 'Gradient' },
+              { value: 'none', label: 'None' },
+            ],
+          },
+          {
+            type: 'color',
+            key: 'messageListBackground.color',
+            label: 'Color',
+            description: 'Solid background color (supports rgba for transparency)',
+            showWhen: { key: 'messageListBackground.type', value: 'color' },
+          },
+          {
+            type: 'color',
+            key: 'messageListBackground.gradientFrom',
+            label: 'Gradient Start',
+            description: 'Starting color of gradient',
+            showWhen: { key: 'messageListBackground.type', value: 'gradient' },
+          },
+          {
+            type: 'color',
+            key: 'messageListBackground.gradientTo',
+            label: 'Gradient End',
+            description: 'Ending color of gradient',
+            showWhen: { key: 'messageListBackground.type', value: 'gradient' },
+          },
+          {
+            type: 'select',
+            key: 'messageListBackground.gradientDirection',
+            label: 'Gradient Direction',
+            description: 'Direction of gradient flow',
+            showWhen: { key: 'messageListBackground.type', value: 'gradient' },
+            options: [
+              { value: 'to-bottom', label: 'Top to Bottom' },
+              { value: 'to-top', label: 'Bottom to Top' },
+              { value: 'to-right', label: 'Left to Right' },
+              { value: 'to-left', label: 'Right to Left' },
+              { value: 'to-bottom-right', label: 'Diagonal ↘' },
+              { value: 'to-bottom-left', label: 'Diagonal ↙' },
+            ],
+          },
+          {
+            type: 'slider',
+            key: 'messageListBackground.opacity',
+            label: 'Opacity',
+            description: 'Overall background opacity',
+            showWhen: { key: 'messageListBackground.enabled', value: true },
+            min: 0, max: 100, step: 5, suffix: '%',
+          },
+          {
+            type: 'slider',
+            key: 'messageListBackground.blur',
+            label: 'Blur (Frosted Glass)',
+            description: 'Backdrop blur effect',
+            showWhen: { key: 'messageListBackground.enabled', value: true },
+            min: 0, max: 20, step: 1, suffix: 'px',
           },
         ],
       },

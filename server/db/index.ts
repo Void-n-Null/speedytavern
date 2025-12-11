@@ -97,6 +97,16 @@ export function initDb(): Database {
     )
   `);
   
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fonts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      format TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+  
   // Indexes for fast lookups
   db.run('CREATE INDEX IF NOT EXISTS idx_nodes_chat ON chat_nodes(chat_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_nodes_parent ON chat_nodes(parent_id)');

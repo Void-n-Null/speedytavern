@@ -6,8 +6,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import { profiles } from '../../api/client';
-import type { ProfileMeta, CreateProfileRequest, UpdateProfileRequest } from '../../types/profile';
-import type { MessageStyleConfig } from '../../types/messageStyle';
+import type { Profile, ProfileMeta, CreateProfileRequest, UpdateProfileRequest } from '../../types/profile';
+import type { MessageStyleConfig, TypographyConfig, LayoutConfig, AvatarConfig, ActionsConfig, BranchConfig, TimestampConfig, AnimationConfig, EditConfig, PageBackgroundConfig, MessageListBackgroundConfig } from '../../types/messageStyle';
+import { defaultTypography, defaultLayout, defaultAvatar, defaultActions, defaultBranch, defaultTimestamp, defaultAnimation, defaultEdit, defaultPageBackground, defaultMessageListBackground, defaultMessageStyleConfig } from '../../types/messageStyle';
 
 // ============ Queries ============
 
@@ -79,8 +80,50 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateProfileRequest }) =>
       profiles.update(id, data),
+    
+    // Optimistic update - apply changes immediately to avoid UI whiplash
+    onMutate: async ({ id, data }) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.profiles.active() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.profiles.detail(id) });
+      
+      // Snapshot current values for rollback
+      const previousActive = queryClient.getQueryData<Profile>(queryKeys.profiles.active());
+      const previousDetail = queryClient.getQueryData<Profile>(queryKeys.profiles.detail(id));
+      
+      // Optimistically update the caches
+      const optimisticUpdate = (old: Profile | undefined): Profile | undefined => {
+        if (!old || old.id !== id) return old;
+        return {
+          ...old,
+          ...data,
+          messageStyle: data.messageStyle 
+            ? { ...old.messageStyle, ...data.messageStyle }
+            : old.messageStyle,
+          updatedAt: Date.now(),
+        };
+      };
+      
+      queryClient.setQueryData<Profile>(queryKeys.profiles.active(), optimisticUpdate);
+      queryClient.setQueryData<Profile>(queryKeys.profiles.detail(id), optimisticUpdate);
+      
+      // Return context for rollback
+      return { previousActive, previousDetail, id };
+    },
+    
+    // Rollback on error
+    onError: (_err, _variables, context) => {
+      if (context?.previousActive) {
+        queryClient.setQueryData(queryKeys.profiles.active(), context.previousActive);
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(queryKeys.profiles.detail(context.id), context.previousDetail);
+      }
+    },
+    
+    // On success, update with server response (source of truth)
     onSuccess: (updatedProfile) => {
-      // Update detail cache
+      // Update detail cache with server response
       queryClient.setQueryData(
         queryKeys.profiles.detail(updatedProfile.id),
         updatedProfile
@@ -100,7 +143,7 @@ export function useUpdateProfile() {
             : p
         )
       );
-      // If this is the active profile, update active cache
+      // If this is the active profile, update active cache with server response
       if (updatedProfile.isDefault) {
         queryClient.setQueryData(queryKeys.profiles.active(), updatedProfile);
       }
@@ -238,6 +281,13 @@ export function useActiveMessageStyle() {
     });
   };
   
+  const setMessageListBackground = (messageListBackground: Partial<MessageStyleConfig['messageListBackground']>) => {
+    if (!config) return;
+    return updateConfig({
+      messageListBackground: { ...config.messageListBackground, ...messageListBackground },
+    });
+  };
+  
   const resetConfig = async () => {
     if (!profile) return;
     const { defaultMessageStyleConfig } = await import('../../types/messageStyle');
@@ -264,7 +314,122 @@ export function useActiveMessageStyle() {
     setAnimation,
     setEdit,
     setPageBackground,
+    setMessageListBackground,
     resetConfig,
     updateConfig,
   };
+}
+
+// ============ Config Selector Hooks ============
+// These provide fine-grained reactivity - components only re-render when their specific section changes.
+// TanStack Query's structural sharing ensures reference stability.
+
+/** Typography config with defaults */
+export function useTypographyConfig(): TypographyConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.typography ?? defaultTypography,
+  });
+  return data ?? defaultTypography;
+}
+
+/** Layout config with defaults */
+export function useLayoutConfig(): LayoutConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.layout ?? defaultLayout,
+  });
+  return data ?? defaultLayout;
+}
+
+/** Avatar config with defaults */
+export function useAvatarConfig(): AvatarConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.avatar ?? defaultAvatar,
+  });
+  return data ?? defaultAvatar;
+}
+
+/** Actions config with defaults */
+export function useActionsConfig(): ActionsConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.actions ?? defaultActions,
+  });
+  return data ?? defaultActions;
+}
+
+/** Branch indicator config with defaults */
+export function useBranchConfig(): BranchConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.branch ?? defaultBranch,
+  });
+  return data ?? defaultBranch;
+}
+
+/** Timestamp config with defaults */
+export function useTimestampConfig(): TimestampConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.timestamp ?? defaultTimestamp,
+  });
+  return data ?? defaultTimestamp;
+}
+
+/** Animation config with defaults */
+export function useAnimationConfig(): AnimationConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.animation ?? defaultAnimation,
+  });
+  return data ?? defaultAnimation;
+}
+
+/** Edit config with defaults */
+export function useEditConfig(): EditConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.edit ?? defaultEdit,
+  });
+  return data ?? defaultEdit;
+}
+
+/** Page background config with defaults */
+export function usePageBackgroundConfig(): PageBackgroundConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.pageBackground ?? defaultPageBackground,
+  });
+  return data ?? defaultPageBackground;
+}
+
+/** Message list background config with defaults */
+export function useMessageListBackgroundConfig(): MessageListBackgroundConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.messageListBackground ?? defaultMessageListBackground,
+  });
+  return data ?? defaultMessageListBackground;
+}
+
+/** Full message style config with defaults */
+export function useFullConfig(): MessageStyleConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle ?? defaultMessageStyleConfig,
+  });
+  return data ?? defaultMessageStyleConfig;
 }

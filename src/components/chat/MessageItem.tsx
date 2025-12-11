@@ -5,10 +5,7 @@ import { MessageContent } from './MessageContent';
 import { MessageMeta } from './MessageMeta';
 import { MessageBranchIndicator } from './MessageBranchIndicator';
 import { MessageActions } from './MessageActions';
-import {
-  useLayoutConfig,
-  useEditConfig,
-} from '../../store/messageStyleStore';
+import { useLayoutConfig, useEditConfig } from '../../hooks/queries/useProfiles';
 import { gapMap, paddingMap } from '../../types/messageStyle';
 
 interface MessageItemProps {
@@ -53,7 +50,7 @@ function arePropsEqual(prev: MessageItemProps, next: MessageItemProps): boolean 
 
 /**
  * Single message container - composes smaller components.
- * Now fully customizable via messageStyleStore.
+ * Styles from profile config via TanStack Query.
  * 
  * Handles:
  * - Layout orchestration based on style config
@@ -201,13 +198,6 @@ export const MessageItem = memo(function MessageItem({
       )}
       
       <div className="message-body" style={bodyStyle}>
-        {/* Branch counter badge - shows when multiple branches exist */}
-        {siblingCount > 1 && (
-          <span className="branch-counter-badge">
-            {currentSiblingIndex + 1}/{siblingCount}
-          </span>
-        )}
-        
         {/* Inline meta (name before text) */}
         {layout.metaPosition === 'inline' && isFirstInGroup && (
           <MessageMeta
@@ -238,6 +228,8 @@ export const MessageItem = memo(function MessageItem({
         <MessageActions
           nodeId={node.id}
           isBot={node.is_bot}
+          siblingCount={siblingCount}
+          currentSiblingIndex={currentSiblingIndex}
           onEdit={handleStartEdit}
           onDelete={onDelete}
           onRegenerate={node.is_bot ? onRegenerate : undefined}

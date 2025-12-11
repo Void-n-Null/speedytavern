@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { useEtherealMeta } from '../../store/streamingStore';
 import { useServerChat } from '../../hooks/queries';
-import { useLayoutConfig, useTypographyConfig } from '../../store/messageStyleStore';
+import { useLayoutConfig, useTypographyConfig } from '../../hooks/queries/useProfiles';
 import { gapMap, paddingMap, fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
 import { MessageMeta } from './MessageMeta';
 import { StreamingMarkdown } from './StreamingMarkdown';

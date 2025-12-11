@@ -20,21 +20,19 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ value, onChange }: ColorPickerProps) {
+  // Initialize directly from props - no sync effect needed
+  const normalizedValue = value || '#ffffff';
   const [showHex, setShowHex] = useState(false);
-  const [hexInput, setHexInput] = useState(value || '#ffffff');
-  const [displayColor, setDisplayColor] = useState(value || '#ffffff');
-  const swatchRef = useRef<HTMLDivElement>(null);
+  const [hexInput, setHexInput] = useState(normalizedValue);
+  const [displayColor, setDisplayColor] = useState(normalizedValue);
   const inputRef = useRef<HTMLInputElement>(null);
-  const currentColorRef = useRef(value || '#ffffff');
+  const swatchRef = useRef<HTMLDivElement>(null);
+  const currentColorRef = useRef(normalizedValue);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Sync display when value changes externally
-  useEffect(() => {
-    setDisplayColor(value || '#ffffff');
-    setHexInput(value || '#ffffff');
-    currentColorRef.current = value || '#ffffff';
-  }, [value]);
+  // Update ref when value changes (no state, no re-render)
+  currentColorRef.current = normalizedValue;
 
   // Native event listeners to bypass React's broken onChange for color inputs
   useEffect(() => {

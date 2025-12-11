@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useEffect, useState, useLayoutEffect } from 'react';
 import type { CSSProperties } from 'react';
-import { useMessageStyleStore } from '../../store/messageStyleStore';
+import { useAnimationConfig, useLayoutConfig, useActiveMessageStyle, useMessageListBackgroundConfig } from '../../hooks/queries/useProfiles';
+import type { GradientDirection } from '../../types/messageStyle';
+import { useOptimisticValue } from '../../hooks/useOptimisticValue';
 import { useServerChat } from '../../hooks/queries';
 import { MessageItem } from './MessageItem';
 import { EtherealMessage } from './EtherealMessage';
@@ -53,22 +55,32 @@ export function MessageList() {
   const lazyRenderPathRef = useRef<{ length: number; firstId: string | null }>({ length: 0, firstId: null });
   
   // Get animation settings
-  const branchSwitchAnimation = useMessageStyleStore((s) => s.config.animation.branchSwitchAnimation);
-  const animationsEnabled = useMessageStyleStore((s) => s.config.animation.enabled);
+  const animationConfig = useAnimationConfig();
+  const branchSwitchAnimation = animationConfig.branchSwitchAnimation;
+  const animationsEnabled = animationConfig.enabled;
   
   // Only subscribe to containerWidth from store (for initial value and settings panel sync)
-  const storedWidth = useMessageStyleStore((s) => s.config.layout.containerWidth);
-  const setLayout = useMessageStyleStore((s) => s.setLayout);
+  const layoutConfig = useLayoutConfig();
+  const storedWidth = layoutConfig.containerWidth;
+  const { setLayout } = useActiveMessageStyle();
   
-  // Local state for live dragging - doesn't trigger store updates until release
-  const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  // Message list background config
+  const messageListBg = useMessageListBackgroundConfig();
+  
+  // Drag state
   const dragRef = useRef<{ edge: 'left' | 'right'; startX: number; startWidthPercent: number } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Sync local width when store changes (e.g., from settings panel)
-  useEffect(() => {
-    if (liveWidth === null) return; // Don't sync during drag
-  }, [storedWidth]);
+  // Optimistic local state for drag - keeps value until server syncs
+  const [currentWidth, setLocalWidth, isLocalActive] = useOptimisticValue(storedWidth);
+  
+  // Refs for values accessed in event handlers (prevents effect re-running during drag)
+  const currentWidthRef = useRef(currentWidth);
+  const setLocalWidthRef = useRef(setLocalWidth);
+  const setLayoutRef = useRef(setLayout);
+  currentWidthRef.current = currentWidth;
+  setLocalWidthRef.current = setLocalWidth;
+  setLayoutRef.current = setLayout;
   
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -78,23 +90,20 @@ export function MessageList() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
   
-  // The actual width to render - use liveWidth during drag, store otherwise
-  const currentWidth = liveWidth ?? storedWidth;
-  
   // Handle drag start - capture initial position and width
   const handleMouseDown = useCallback((edge: 'left' | 'right') => (e: React.MouseEvent) => {
     e.preventDefault();
     dragRef.current = {
       edge,
       startX: e.clientX,
-      startWidthPercent: currentWidth,
+      startWidthPercent: currentWidthRef.current,
     };
-    setLiveWidth(currentWidth); // Start tracking locally
-  }, [currentWidth]);
+    setLocalWidthRef.current(currentWidthRef.current); // Start tracking locally
+  }, []); // No deps - uses refs
   
-  // Handle drag move and end
+  // Handle drag move and end - only attach when actively dragging
   useEffect(() => {
-    if (liveWidth === null || !dragRef.current) return;
+    if (!isLocalActive) return;
     
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragRef.current || !wrapperRef.current) return;
@@ -117,16 +126,14 @@ export function MessageList() {
       
       // Clamp and update LOCAL state only (no store update = no re-renders downstream)
       newWidthPercent = Math.max(20, Math.min(100, newWidthPercent));
-      setLiveWidth(newWidthPercent);
+      setLocalWidthRef.current(newWidthPercent);
     };
     
     const handleMouseUp = () => {
-      // Commit to store on release (persists to localStorage)
-      if (liveWidth !== null) {
-        setLayout({ containerWidth: liveWidth });
-      }
+      // Commit to store on release (persists to server)
+      setLayoutRef.current({ containerWidth: currentWidthRef.current });
       dragRef.current = null;
-      setLiveWidth(null); // Stop local tracking
+      // Don't clear local state here! Hook clears it when server syncs
     };
     
     document.addEventListener('mousemove', handleMouseMove);
@@ -136,7 +143,7 @@ export function MessageList() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [liveWidth, setLayout]);
+  }, [isLocalActive]); // Only re-run when drag starts/stops, not during
   
   // Wrapper styles - no transition, instant response
   const wrapperStyle: CSSProperties = {
@@ -160,6 +167,78 @@ export function MessageList() {
   
   const leftHandleStyle: CSSProperties = { ...handleStyle, left: '-4px' };
   const rightHandleStyle: CSSProperties = { ...handleStyle, right: '-4px' };
+  
+  // Compute message list background style
+  const gradientDirectionMap: Record<GradientDirection, string> = {
+    'to-bottom': 'to bottom',
+    'to-top': 'to top',
+    'to-right': 'to right',
+    'to-left': 'to left',
+    'to-bottom-right': 'to bottom right',
+    'to-bottom-left': 'to bottom left',
+  };
+  
+  // Helper to apply opacity to a color (supports hex, rgb, rgba)
+  const applyOpacityToColor = (color: string | undefined, opacity: number): string => {
+    if (!color) return `rgba(0, 0, 0, ${opacity})`;
+    // If already rgba, adjust the alpha
+    if (color.startsWith('rgba')) {
+      return color.replace(/[\d.]+\)$/, `${opacity})`);
+    }
+    // If rgb, convert to rgba
+    if (color.startsWith('rgb(')) {
+      return color.replace('rgb(', 'rgba(').replace(')', `, ${opacity})`);
+    }
+    // If hex, convert to rgba
+    if (color.startsWith('#')) {
+      const hex = color.slice(1);
+      const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
+      const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
+      const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    return color;
+  };
+  
+  const messageListBackgroundStyle: CSSProperties = useMemo(() => {
+    if (!messageListBg.enabled) return {};
+    
+    const opacity = messageListBg.opacity / 100;
+    const baseStyle: CSSProperties = {
+      borderRadius: '8px',
+    };
+    
+    // Add backdrop blur if set
+    if (messageListBg.blur > 0) {
+      baseStyle.backdropFilter = `blur(${messageListBg.blur}px)`;
+      baseStyle.WebkitBackdropFilter = `blur(${messageListBg.blur}px)`;
+    }
+    
+    if (messageListBg.type === 'none') {
+      return baseStyle;
+    }
+    
+    if (messageListBg.type === 'color') {
+      // Apply opacity directly to the color, not the container
+      return {
+        ...baseStyle,
+        backgroundColor: applyOpacityToColor(messageListBg.color, opacity),
+      };
+    }
+    
+    if (messageListBg.type === 'gradient') {
+      const direction = gradientDirectionMap[messageListBg.gradientDirection];
+      // Apply opacity to gradient colors
+      const fromColor = applyOpacityToColor(messageListBg.gradientFrom, opacity);
+      const toColor = applyOpacityToColor(messageListBg.gradientTo, opacity);
+      return {
+        ...baseStyle,
+        background: `linear-gradient(${direction}, ${fromColor}, ${toColor})`,
+      };
+    }
+    
+    return baseStyle;
+  }, [messageListBg]);
   
   // All chat data from TanStack Query (single source of truth)
   const { 
@@ -542,7 +621,7 @@ export function MessageList() {
       )}
       
       {/* Message container */}
-      <div className="message-list" ref={containerRef}>
+      <div className="message-list" ref={containerRef} style={messageListBackgroundStyle}>
         {/* Load more indicator - shown when there are hidden messages */}
         {visiblePathInfo.hiddenCount > 0 && (
           <div className="message-list-load-more" onClick={handleLoadMore}>

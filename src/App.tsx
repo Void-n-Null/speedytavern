@@ -4,7 +4,8 @@ import { MessageList } from './components/chat';
 import { DesignConfigModal } from './components/design-config/DesignConfigModal';
 import { useServerChat } from './hooks/queries';
 import { useStreamingDemo } from './hooks/useStreamingDemo';
-import { usePageBackgroundConfig } from './store/messageStyleStore';
+import { usePageBackgroundConfig, useTypographyConfig } from './hooks/queries/useProfiles';
+import { useCustomFontLoader } from './hooks/queries/useFonts';
 import { Button } from './components/ui/button';
 import { ToastContainer } from './components/ui/toast';
 
@@ -17,6 +18,10 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const { isLoading, error } = useServerChat();
   const pageBackground = usePageBackgroundConfig();
+  const typography = useTypographyConfig();
+  
+  // Load custom font if selected
+  useCustomFontLoader(typography.customFontId, typography.fontFamily);
 
   // Build background style based on config
   const bgStyle: React.CSSProperties = pageBackground.type === 'color'

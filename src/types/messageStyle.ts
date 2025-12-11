@@ -3,10 +3,12 @@
  * All options are designed to be serializable to localStorage.
  */
 
+import defaultTemplate from '../config/defaultTemplate.json';
+
 // ============ Typography ============
 export type FontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type LineHeight = 'tight' | 'normal' | 'relaxed';
-export type FontFamily = 'system' | 'mono' | 'serif';
+export type FontFamily = 'open-sans' | 'red-hat-mono' | 'source-code-pro' | 'poppins' | 'oswald' | 'custom';
 export type FontWeight = 'normal' | 'medium' | 'bold';
 
 export interface TypographyConfig {
@@ -14,6 +16,7 @@ export interface TypographyConfig {
   lineHeight: LineHeight;
   fontFamily: FontFamily;
   fontWeight: FontWeight;
+  customFontId?: string;      // ID of uploaded custom font (when fontFamily = 'custom')
   textColor: string;
   userTextColor: string;      // Override for user messages (empty = use textColor)
   botTextColor: string;       // Override for bot messages (empty = use textColor)
@@ -115,6 +118,21 @@ export interface EditConfig {
   buttonPosition: EditButtonPosition;
 }
 
+// ============ Message List Background ============
+export type MessageListBackgroundType = 'none' | 'color' | 'gradient';
+export type GradientDirection = 'to-bottom' | 'to-top' | 'to-right' | 'to-left' | 'to-bottom-right' | 'to-bottom-left';
+
+export interface MessageListBackgroundConfig {
+  enabled: boolean;
+  type: MessageListBackgroundType;
+  color: string;
+  gradientFrom: string;
+  gradientTo: string;
+  gradientDirection: GradientDirection;
+  opacity: number;              // 0-100
+  blur: number;                 // 0-20 px blur for frosted glass effect
+}
+
 // ============ Page Background ============
 export type BackgroundType = 'color' | 'image' | 'none';
 export type BackgroundSize = 'cover' | 'contain' | 'auto';
@@ -142,101 +160,26 @@ export interface MessageStyleConfig {
   animation: AnimationConfig;
   edit: EditConfig;
   pageBackground: PageBackgroundConfig;
+  messageListBackground: MessageListBackgroundConfig;
   speakerOverrides: Record<string, Partial<MessageStyleConfig>>;
 }
 
-// ============ Defaults ============
-export const defaultTypography: TypographyConfig = {
-  fontSize: 'md',
-  lineHeight: 'normal',
-  fontFamily: 'system',
-  fontWeight: 'normal',
-  textColor: '#e0e0e0',
-  userTextColor: '',
-  botTextColor: '',
-  timestampColor: '#888888',
-  usernameColor: '#ffffff',
-};
+// ============ Defaults (loaded from JSON template) ============
 
-export const defaultLayout: LayoutConfig = {
-  metaPosition: 'left',
-  userAlignment: 'right',
-  botAlignment: 'left',
-  messageStyle: 'bubble',
-  bubblePadding: 'normal',
-  bubbleMaxWidth: 80,
-  groupConsecutive: true,
-  groupGap: 'tight',
-  messageGap: 'normal',
-  avatarGap: 12,
-  containerWidth: 50,
-};
+// Single source of truth - edit defaultTemplate.json to change defaults
+export const defaultMessageStyleConfig = defaultTemplate as MessageStyleConfig;
 
-export const defaultAvatar: AvatarConfig = {
-  shape: 'circle',
-  roundness: 8,
-  size: 'md',
-  visibility: 'first-in-group',
-  verticalAlign: 'top',
-  fallback: 'initials',
-};
-
-export const defaultActions: ActionsConfig = {
-  visibility: 'hover',
-  position: 'inline',
-  style: 'icon',
-  size: 'md',
-  showEdit: true,
-  showDelete: true,
-  showBranch: true,
-  showRegenerate: true,
-  showCopy: true,
-};
-
-export const defaultBranch: BranchConfig = {
-  chevronSize: 'md',
-};
-
-export const defaultTimestamp: TimestampConfig = {
-  format: 'smart',
-  detail: 'time-only',
-  position: 'with-name',
-};
-
-export const defaultAnimation: AnimationConfig = {
-  enabled: true,
-  hoverTransition: 'fade',
-  newMessageAnimation: 'fade-in',
-  branchSwitchAnimation: 'slide',
-};
-
-export const defaultEdit: EditConfig = {
-  style: 'inline',
-  buttonPosition: 'below',
-};
-
-export const defaultPageBackground: PageBackgroundConfig = {
-  type: 'color',
-  color: '#1a1a2e',
-  imageUrl: '',
-  size: 'cover',
-  position: 'center',
-  repeat: 'no-repeat',
-  opacity: 100,
-};
-
-export const defaultMessageStyleConfig: MessageStyleConfig = {
-  typography: defaultTypography,
-  layout: defaultLayout,
-  avatar: defaultAvatar,
-  actions: defaultActions,
-  branch: defaultBranch,
-  timestamp: defaultTimestamp,
-  animation: defaultAnimation,
-  edit: defaultEdit,
-  pageBackground: defaultPageBackground,
-  speakerOverrides: {},
-};
+// Section-level defaults for hooks that need them
+export const defaultTypography = defaultMessageStyleConfig.typography;
+export const defaultLayout = defaultMessageStyleConfig.layout;
+export const defaultAvatar = defaultMessageStyleConfig.avatar;
+export const defaultActions = defaultMessageStyleConfig.actions;
+export const defaultBranch = defaultMessageStyleConfig.branch;
+export const defaultTimestamp = defaultMessageStyleConfig.timestamp;
+export const defaultAnimation = defaultMessageStyleConfig.animation;
+export const defaultEdit = defaultMessageStyleConfig.edit;
+export const defaultPageBackground = defaultMessageStyleConfig.pageBackground;
+export const defaultMessageListBackground = defaultMessageStyleConfig.messageListBackground;
 
 // ============ CSS Variable Mappings ============
 export const branchChevronSizeMap: Record<BranchChevronSize, { width: number; height: number; fontSize: number }> = {
@@ -260,9 +203,12 @@ export const lineHeightMap: Record<LineHeight, string> = {
 };
 
 export const fontFamilyMap: Record<FontFamily, string> = {
-  system: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  mono: '"Fira Code", "Consolas", monospace',
-  serif: 'Georgia, "Times New Roman", serif',
+  'open-sans': '"Open Sans", sans-serif',
+  'red-hat-mono': '"Red Hat Mono", monospace',
+  'source-code-pro': '"Source Code Pro", monospace',
+  'poppins': '"Poppins", sans-serif',
+  'oswald': '"Oswald", sans-serif',
+  'custom': 'var(--custom-font-family, sans-serif)',
 };
 
 export const fontWeightMap: Record<FontWeight, string> = {

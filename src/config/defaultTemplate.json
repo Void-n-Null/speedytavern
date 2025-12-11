@@ -1,0 +1,83 @@
+{
+  "typography": {
+    "fontSize": "md",
+    "lineHeight": "normal",
+    "fontFamily": "open-sans",
+    "fontWeight": "normal",
+    "textColor": "#53e802",
+    "userTextColor": "",
+    "botTextColor": "#fffff0",
+    "timestampColor": "#888888",
+    "usernameColor": "#ffffff"
+  },
+  "layout": {
+    "metaPosition": "above",
+    "userAlignment": "left",
+    "botAlignment": "left",
+    "messageStyle": "flat",
+    "bubblePadding": "compact",
+    "bubbleMaxWidth": 100,
+    "groupConsecutive": false,
+    "groupGap": "tight",
+    "messageGap": "normal",
+    "avatarGap": 12,
+    "containerWidth": 60
+  },
+  "avatar": {
+    "shape": "rounded",
+    "roundness": 14,
+    "size": "lg",
+    "visibility": "first-in-group",
+    "verticalAlign": "top",
+    "fallback": "initials"
+  },
+  "actions": {
+    "visibility": "hover",
+    "position": "inline",
+    "style": "icon",
+    "size": "md",
+    "showEdit": true,
+    "showDelete": true,
+    "showBranch": true,
+    "showRegenerate": true,
+    "showCopy": true
+  },
+  "branch": {
+    "chevronSize": "lg"
+  },
+  "timestamp": {
+    "format": "smart",
+    "detail": "time-only",
+    "position": "with-name"
+  },
+  "animation": {
+    "enabled": true,
+    "hoverTransition": "fade",
+    "newMessageAnimation": "fade-in",
+    "branchSwitchAnimation": "slide"
+  },
+  "edit": {
+    "style": "inline",
+    "buttonPosition": "below"
+  },
+  "pageBackground": {
+    "type": "color",
+    "color": "#242324",
+    "imageUrl": "",
+    "size": "cover",
+    "position": "center",
+    "repeat": "no-repeat",
+    "opacity": 100
+  },
+  "messageListBackground": {
+    "enabled": false,
+    "type": "color",
+    "color": "#dad7d7",
+    "gradientFrom": "rgba(30, 30, 50, 0.9)",
+    "gradientTo": "rgba(20, 20, 40, 0.7)",
+    "gradientDirection": "to-bottom",
+    "opacity": 10,
+    "blur": 6
+  },
+  "speakerOverrides": {}
+}

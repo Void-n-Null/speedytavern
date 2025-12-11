@@ -1,12 +1,7 @@
 import { memo, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import type { Speaker } from '../../types/chat';
-import {
-  useTypographyConfig,
-  useLayoutConfig,
-  useAvatarConfig,
-  useTimestampConfig,
-} from '../../store/messageStyleStore';
+import { useTypographyConfig, useLayoutConfig, useAvatarConfig, useTimestampConfig } from '../../hooks/queries/useProfiles';
 import { avatarSizeMap } from '../../types/messageStyle';
 import type { TimestampDetail } from '../../types/messageStyle';
 
@@ -18,7 +13,7 @@ interface MessageMetaProps {
 
 /**
  * Renders message metadata: avatar, speaker name, timestamp.
- * Now fully customizable via messageStyleStore.
+ * Styles from profile config via TanStack Query.
  */
 export const MessageMeta = memo(function MessageMeta({
   speaker,

@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
-import { useBranchConfig } from '../../store/messageStyleStore';
+import { useBranchConfig } from '../../hooks/queries/useProfiles';
 import { branchChevronSizeMap } from '../../types/messageStyle';
 
 interface MessageBranchIndicatorProps {

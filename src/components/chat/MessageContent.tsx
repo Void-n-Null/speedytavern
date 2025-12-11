@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import type { CSSProperties } from 'react';
-import { useTypographyConfig, useEditConfig } from '../../store/messageStyleStore';
+import { useTypographyConfig, useEditConfig } from '../../hooks/queries/useProfiles';
 import { fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
 import { parseMarkdown } from '../../utils/streamingMarkdown';
 

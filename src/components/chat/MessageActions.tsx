@@ -1,11 +1,13 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import type { CSSProperties } from 'react';
-import { useActionsConfig } from '../../store/messageStyleStore';
+import { useActionsConfig } from '../../hooks/queries/useProfiles';
 import { actionsSizeMap } from '../../types/messageStyle';
 
 interface MessageActionsProps {
   nodeId: string;
   isBot: boolean;
+  siblingCount: number;
+  currentSiblingIndex: number;
   onEdit: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
   onRegenerate?: (nodeId: string) => void;
@@ -15,13 +17,15 @@ interface MessageActionsProps {
 
 /**
  * Action buttons for a message.
- * Now fully customizable via messageStyleStore.
+ * Styles from profile config via TanStack Query.
  * 
  * Visibility can be 'always' or 'hover' (CSS handles hover state).
  */
 export const MessageActions = memo(function MessageActions({
   nodeId,
   isBot,
+  siblingCount,
+  currentSiblingIndex,
   onEdit,
   onDelete,
   onRegenerate,
@@ -101,6 +105,13 @@ export const MessageActions = memo(function MessageActions({
       style={containerStyle}
       data-visibility={actionsConfig.visibility}
     >
+      {/* Branch counter badge - shows when multiple branches exist */}
+      {siblingCount > 1 && (
+        <span className="branch-counter-badge">
+          {currentSiblingIndex + 1}/{siblingCount}
+        </span>
+      )}
+      
       {actionsConfig.showEdit && (
         <button
           className="message-action-btn"
