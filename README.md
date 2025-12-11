@@ -1,1 +1,1 @@
-## SpeedyTavern
+## TavernStudio

@@ -138,7 +138,7 @@ export const useMessageStyleStore = create<MessageStyleStore>()(
         }),
     }),
     {
-      name: 'speedytavern-message-style',
+      name: 'tavernstudio-message-style',
     }
   )
 );

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "speedytavern",
+      "name": "tavernstudio",
       "dependencies": {
         "@tanstack/react-query": "^5.90.12",
         "hono": "^4.10.8",

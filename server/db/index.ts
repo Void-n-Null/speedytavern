@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../..');
 const DATA_DIR = join(PROJECT_ROOT, 'data');
-const DB_PATH = join(DATA_DIR, 'speedytavern.db');
+const DB_PATH = join(DATA_DIR, 'tavernstudio.db');
 
 let db: Database;
 
