@@ -61,6 +61,25 @@
     "style": "inline",
     "buttonPosition": "below"
   },
+  "markdown": {
+    "codeBlockBackground": "rgba(0, 0, 0, 0.4)",
+    "codeBlockTextColor": "#e0e0e0",
+    "codeBlockBorderRadius": 6,
+    "inlineCodeBackground": "rgba(0, 0, 0, 0.3)",
+    "inlineCodeTextColor": "#f0f0f0",
+    "blockquoteBorderColor": "rgba(255, 255, 255, 0.3)",
+    "blockquoteBackground": "transparent",
+    "blockquoteTextColor": "rgba(255, 255, 255, 0.7)",
+    "headingColor": "",
+    "headingWeight": "bold",
+    "headingSize": "md",
+    "boldColor": "",
+    "italicColor": "",
+    "italicStyle": true,
+    "quoteColor": "#f0c674",
+    "linkColor": "#6ba3ff",
+    "linkUnderline": true
+  },
   "pageBackground": {
     "type": "color",
     "color": "#242324",

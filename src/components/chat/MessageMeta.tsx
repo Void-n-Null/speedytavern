@@ -9,6 +9,7 @@ interface MessageMetaProps {
   speaker: Speaker;
   timestamp: number;
   isFirstInGroup: boolean;
+  avatarOnly?: boolean;  // For 'aside' layout - render only the avatar
 }
 
 /**
@@ -19,6 +20,7 @@ export const MessageMeta = memo(function MessageMeta({
   speaker,
   timestamp,
   isFirstInGroup,
+  avatarOnly = false,
 }: MessageMetaProps) {
   // Debug: log when speaker or timestamp seems invalid
   if (!speaker?.name || !timestamp) {
@@ -123,10 +125,15 @@ export const MessageMeta = memo(function MessageMeta({
         return { ...base, flexDirection: 'row', alignItems: 'center' };
       case 'inline':
         return { ...base, flexDirection: 'row', alignItems: 'center' };
+      case 'aside':
+        // When avatarOnly, just center the avatar; otherwise row for name/timestamp
+        return avatarOnly 
+          ? { ...base, flexDirection: 'column', alignItems: 'center', marginRight: `${layout.avatarGap}px` }
+          : { ...base, flexDirection: 'row', alignItems: 'center', marginBottom: '4px' };
       default:
         return base;
     }
-  }, [layout.metaPosition, layout.avatarGap]);
+  }, [layout.metaPosition, layout.avatarGap, avatarOnly]);
 
   // Text styles
   const nameStyle: CSSProperties = {
@@ -222,6 +229,24 @@ export const MessageMeta = memo(function MessageMeta({
       </div>
     );
   };
+
+  // For aside layout with avatarOnly, just render the avatar
+  if (avatarOnly) {
+    return (
+      <div className="message-meta message-meta--aside-avatar" style={containerStyle}>
+        {renderAvatar()}
+      </div>
+    );
+  }
+  
+  // For aside layout without avatarOnly, render just name/timestamp (no avatar)
+  if (layout.metaPosition === 'aside') {
+    return (
+      <div className="message-meta message-meta--aside-text" style={containerStyle}>
+        {renderMetaText()}
+      </div>
+    );
+  }
 
   return (
     <div className="message-meta" style={containerStyle}>

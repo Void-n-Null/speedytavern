@@ -74,6 +74,10 @@ export const EtherealMessage = memo(function EtherealMessage() {
       case 'inline':
         base.flexDirection = 'column';
         break;
+      case 'aside':
+        base.flexDirection = 'row';
+        base.alignItems = 'flex-start';
+        break;
     }
 
     if (alignment === 'right') {
@@ -138,6 +142,16 @@ export const EtherealMessage = memo(function EtherealMessage() {
         />
       )}
       
+      {/* Aside layout: avatar on left */}
+      {layout.metaPosition === 'aside' && (
+        <MessageMeta
+          speaker={speaker}
+          timestamp={meta.startedAt}
+          isFirstInGroup={true}
+          avatarOnly={true}
+        />
+      )}
+      
       <div className="message-body" style={bodyStyle}>
         {/* Inline meta (name before text) */}
         {layout.metaPosition === 'inline' && (
@@ -145,6 +159,16 @@ export const EtherealMessage = memo(function EtherealMessage() {
             speaker={speaker}
             timestamp={meta.startedAt}
             isFirstInGroup={true}
+          />
+        )}
+        
+        {/* Aside layout: name/timestamp above text */}
+        {layout.metaPosition === 'aside' && (
+          <MessageMeta
+            speaker={speaker}
+            timestamp={meta.startedAt}
+            isFirstInGroup={true}
+            avatarOnly={false}
           />
         )}
         

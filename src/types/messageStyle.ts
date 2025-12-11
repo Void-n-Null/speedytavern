@@ -26,10 +26,10 @@ export interface TypographyConfig {
 }
 
 // ============ Layout ============
-export type MetaPosition = 'left' | 'above' | 'inline';
+export type MetaPosition = 'left' | 'above' | 'inline' | 'aside';
 export type Alignment = 'left' | 'right';
 export type MessageStyle = 'bubble' | 'flat' | 'bordered';
-export type Padding = 'compact' | 'normal' | 'spacious';
+export type Padding = 'compact' | 'normal' | 'spacious' | 'extra';
 export type Gap = 'none' | 'tight' | 'normal' | 'spacious';
 
 export interface LayoutConfig {
@@ -150,6 +150,35 @@ export interface PageBackgroundConfig {
   opacity: number;              // 0-100, for image overlay
 }
 
+// ============ Markdown Styling ============
+export type HeadingSize = 'sm' | 'md' | 'lg' | 'xl';
+
+export interface MarkdownStyleConfig {
+  // Code blocks
+  codeBlockBackground: string;
+  codeBlockTextColor: string;
+  codeBlockBorderRadius: number;    // px
+  // Inline code
+  inlineCodeBackground: string;
+  inlineCodeTextColor: string;
+  // Blockquotes
+  blockquoteBorderColor: string;
+  blockquoteBackground: string;
+  blockquoteTextColor: string;
+  // Headings
+  headingColor: string;             // Shared color for all headings (empty = inherit)
+  headingWeight: FontWeight;
+  headingSize: HeadingSize;         // Base size multiplier for headings
+  // Text formatting
+  boldColor: string;                // Color for **bold** text (empty = inherit)
+  italicColor: string;              // Color for *italic* text (empty = inherit)
+  italicStyle: boolean;             // Whether italics apply actual italic styling
+  quoteColor: string;               // Color for "quoted text" (empty = inherit)
+  // Links
+  linkColor: string;
+  linkUnderline: boolean;
+}
+
 // ============ Full Config ============
 export interface MessageStyleConfig {
   typography: TypographyConfig;
@@ -160,6 +189,7 @@ export interface MessageStyleConfig {
   timestamp: TimestampConfig;
   animation: AnimationConfig;
   edit: EditConfig;
+  markdown: MarkdownStyleConfig;
   pageBackground: PageBackgroundConfig;
   messageListBackground: MessageListBackgroundConfig;
   speakerOverrides: Record<string, Partial<MessageStyleConfig>>;
@@ -179,6 +209,7 @@ export const defaultBranch = defaultMessageStyleConfig.branch;
 export const defaultTimestamp = defaultMessageStyleConfig.timestamp;
 export const defaultAnimation = defaultMessageStyleConfig.animation;
 export const defaultEdit = defaultMessageStyleConfig.edit;
+export const defaultMarkdown = defaultMessageStyleConfig.markdown;
 export const defaultPageBackground = defaultMessageStyleConfig.pageBackground;
 export const defaultMessageListBackground = defaultMessageStyleConfig.messageListBackground;
 
@@ -234,9 +265,10 @@ export const gapMap: Record<Gap, string> = {
 };
 
 export const paddingMap: Record<Padding, string> = {
-  compact: '8px 12px',
-  normal: '12px 16px',
-  spacious: '16px 20px',
+  compact: '0px 2px',
+  normal: '4px 12px',
+  spacious: '10px 16px',
+  extra: '14px 24px', 
 };
 
 export const actionsSizeMap: Record<ActionsSize, string> = {

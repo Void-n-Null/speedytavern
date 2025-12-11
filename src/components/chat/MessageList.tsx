@@ -6,6 +6,7 @@ import { useOptimisticValue } from '../../hooks/useOptimisticValue';
 import { useServerChat } from '../../hooks/queries';
 import { MessageItem } from './MessageItem';
 import { EtherealMessage } from './EtherealMessage';
+import { MarkdownStyles } from './MarkdownStyles';
 import { pickRandomMessage } from '../../utils/generateDemoData';
 
 // Lazy rendering config - render last N messages, load more on scroll
@@ -622,6 +623,9 @@ export function MessageList() {
       
       {/* Message container */}
       <div className="message-list" ref={containerRef} style={messageListBackgroundStyle}>
+        {/* Dynamic markdown styles based on config */}
+        <MarkdownStyles />
+        
         {/* Load more indicator - shown when there are hidden messages */}
         {visiblePathInfo.hiddenCount > 0 && (
           <div className="message-list-load-more" onClick={handleLoadMore}>

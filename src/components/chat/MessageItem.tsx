@@ -123,6 +123,11 @@ export const MessageItem = memo(function MessageItem({
       case 'inline':
         base.flexDirection = 'column';
         break;
+      case 'aside':
+        // Avatar gets its own section on the right, text/name on left
+        base.flexDirection = 'row';
+        base.alignItems = 'flex-start';
+        break;
     }
 
     // Alignment (for user vs bot)
@@ -188,12 +193,22 @@ export const MessageItem = memo(function MessageItem({
       data-hovered={isHovered}
       data-node-id={node.id}
     >
-      {/* Meta section - avatar, name, timestamp */}
+      {/* Meta section - avatar, name, timestamp (left/above layouts) */}
       {(layout.metaPosition === 'left' || layout.metaPosition === 'above') && (
         <MessageMeta
           speaker={speaker}
           timestamp={node.created_at}
           isFirstInGroup={isFirstInGroup}
+        />
+      )}
+      
+      {/* Aside layout: avatar in its own section on the left */}
+      {layout.metaPosition === 'aside' && (
+        <MessageMeta
+          speaker={speaker}
+          timestamp={node.created_at}
+          isFirstInGroup={isFirstInGroup}
+          avatarOnly={true}
         />
       )}
       
@@ -204,6 +219,16 @@ export const MessageItem = memo(function MessageItem({
             speaker={speaker}
             timestamp={node.created_at}
             isFirstInGroup={isFirstInGroup}
+          />
+        )}
+        
+        {/* Aside layout: name/timestamp above text, avatar separate */}
+        {layout.metaPosition === 'aside' && isFirstInGroup && (
+          <MessageMeta
+            speaker={speaker}
+            timestamp={node.created_at}
+            isFirstInGroup={isFirstInGroup}
+            avatarOnly={false}
           />
         )}
         

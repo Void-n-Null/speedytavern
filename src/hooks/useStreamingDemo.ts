@@ -32,7 +32,7 @@ export function useStreamingDemo() {
         if (!started) return;
         
         // Simulate streaming tokens
-        const text = "# This is a streaming message! \n that appears token by token. The ethereal message exists only in streaming store until finalized. Press Enter to persist! ";
+        const text = "\"Dear Princess Celestia,\" `Today, I learned that everypony deserves a chance to be their best self.` *It's important to remember that kindness and understanding can overcome any challenge.* **Please consider this a gentle reminder that we are all capable of growth and change.**";
         let index = 0;
         
         // Clear any existing interval

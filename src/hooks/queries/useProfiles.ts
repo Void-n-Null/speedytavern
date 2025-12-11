@@ -7,8 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import { profiles } from '../../api/client';
 import type { Profile, ProfileMeta, CreateProfileRequest, UpdateProfileRequest } from '../../types/profile';
-import type { MessageStyleConfig, TypographyConfig, LayoutConfig, AvatarConfig, ActionsConfig, BranchConfig, TimestampConfig, AnimationConfig, EditConfig, PageBackgroundConfig, MessageListBackgroundConfig } from '../../types/messageStyle';
-import { defaultTypography, defaultLayout, defaultAvatar, defaultActions, defaultBranch, defaultTimestamp, defaultAnimation, defaultEdit, defaultPageBackground, defaultMessageListBackground, defaultMessageStyleConfig } from '../../types/messageStyle';
+import type { MessageStyleConfig, TypographyConfig, LayoutConfig, AvatarConfig, ActionsConfig, BranchConfig, TimestampConfig, AnimationConfig, EditConfig, MarkdownStyleConfig, PageBackgroundConfig, MessageListBackgroundConfig } from '../../types/messageStyle';
+import { defaultTypography, defaultLayout, defaultAvatar, defaultActions, defaultBranch, defaultTimestamp, defaultAnimation, defaultEdit, defaultMarkdown, defaultPageBackground, defaultMessageListBackground, defaultMessageStyleConfig } from '../../types/messageStyle';
 
 // ============ Queries ============
 
@@ -402,6 +402,16 @@ export function useEditConfig(): EditConfig {
     select: (profile) => profile?.messageStyle?.edit ?? defaultEdit,
   });
   return data ?? defaultEdit;
+}
+
+/** Markdown styling config with defaults */
+export function useMarkdownConfig(): MarkdownStyleConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.messageStyle?.markdown ?? defaultMarkdown,
+  });
+  return data ?? defaultMarkdown;
 }
 
 /** Page background config with defaults */
