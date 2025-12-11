@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useStreamingStore, useIsStreaming, useEtherealMeta, getStreamingContent } from '../store/streamingStore';
 import { useServerChat } from './queries';
 import type { Speaker } from '../types/chat';
+import { normalizeFencedCodeBlocks } from '../utils/streamingMarkdown';
 
 export interface StreamingOptions {
   /** Parent message ID. Defaults to current tail_id */
@@ -120,13 +121,14 @@ export function useStreaming(): StreamingAPI {
     const { meta, cancel } = useStreamingStore.getState();
     const currentSpeakers = speakersRef.current;
     const content = getStreamingContent();
+    const normalizedContent = normalizeFencedCodeBlocks(content);
     
     if (!meta) {
       console.warn('[useStreaming] Finalize called but no ethereal message');
       return false;
     }
     
-    if (!content.trim()) {
+    if (!normalizedContent.trim()) {
       console.warn('[useStreaming] Finalize called but message is empty');
       cancel(); // Clear empty message
       return false;
@@ -145,7 +147,7 @@ export function useStreaming(): StreamingAPI {
     try {
       await addMessageRef.current(
         meta.parentId,
-        content,
+        normalizedContent,
         meta.speakerId,
         isBot,
         meta.startedAt  // Pass the actual start time for accurate timestamps

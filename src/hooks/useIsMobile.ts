@@ -33,7 +33,9 @@ export function useIsMobile(): boolean {
 
     // Modern browsers
     mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
+    return () => {
+      mql.removeEventListener('change', onChange);
+    };
   }, []);
 
   return isMobile;

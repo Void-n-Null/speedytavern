@@ -1,8 +1,9 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useTypographyConfig, useEditConfig } from '../../hooks/queries/useProfiles';
 import { fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
-import { parseMarkdown } from '../../utils/streamingMarkdown';
+import { Streamdown } from 'streamdown';
+import { normalizeFencedCodeBlocks } from '../../utils/streamingMarkdown';
 
 interface MessageContentProps {
   nodeId: string;
@@ -27,9 +28,115 @@ export const MessageContent = memo(function MessageContent({
 }: MessageContentProps) {
   const typography = useTypographyConfig();
   const editConfig = useEditConfig();
-  
-  // Parse markdown for static content (memoized)
-  const htmlContent = useMemo(() => parseMarkdown(content), [content]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Optimistically close unclosed quotes in raw markdown.
+   * If we see an opening " without a closing ", add one at the end.
+   */
+  const displayContent = useMemo(() => {
+    const normalized = normalizeFencedCodeBlocks(content);
+    const quoteCount = (normalized.match(/"/g) || []).length;
+    return quoteCount % 2 !== 0 ? normalized + '"' : normalized;
+  }, [content]);
+
+  function unwrapMdQuotes(element: HTMLElement) {
+    const spans = Array.from(element.querySelectorAll('span.md-quote'));
+    for (const span of spans) {
+      const text = span.textContent ?? '';
+      span.replaceWith(document.createTextNode(text));
+    }
+  }
+
+  function wrapQuotesInElement(element: HTMLElement) {
+    const hasAnyQuote = (s: string) => /["“”]/.test(s);
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const parent = node.parentElement;
+      if (!parent) continue;
+      if (parent.classList.contains('md-quote')) continue;
+      if (parent.closest('pre, code')) continue;
+      textNodes.push(node);
+    }
+
+    let inQuote = false;
+
+    for (const node of textNodes) {
+      const text = node.textContent ?? '';
+      if (!text) continue;
+      if (!hasAnyQuote(text) && !inQuote) continue;
+
+      const frag = document.createDocumentFragment();
+      let localInQuote: boolean = inQuote;
+      let buffer = '';
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const isQuoteChar = ch === '"' || ch === '“' || ch === '”';
+        if (!isQuoteChar) {
+          buffer += ch;
+          continue;
+        }
+
+        if (buffer) {
+          if (localInQuote) {
+            const span = document.createElement('span');
+            span.className = 'md-quote';
+            span.textContent = buffer;
+            frag.appendChild(span);
+          } else {
+            frag.appendChild(document.createTextNode(buffer));
+          }
+          buffer = '';
+        }
+
+        const q = document.createElement('span');
+        q.className = 'md-quote';
+        q.textContent = ch;
+        frag.appendChild(q);
+        localInQuote = !localInQuote;
+      }
+
+      if (buffer) {
+        if (localInQuote) {
+          const span = document.createElement('span');
+          span.className = 'md-quote';
+          span.textContent = buffer;
+          frag.appendChild(span);
+        } else {
+          frag.appendChild(document.createTextNode(buffer));
+        }
+      }
+
+      inQuote = localInQuote;
+      node.parentNode?.replaceChild(frag, node);
+    }
+  }
+
+  // Wrap "quoted text" in spans for styling (DOM pass, like streaming).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const apply = () => {
+      if (!/["“”]/.test(displayContent)) return;
+      unwrapMdQuotes(el);
+      wrapQuotesInElement(el);
+    };
+
+    apply();
+
+    const observer = new MutationObserver(() => {
+      observer.disconnect();
+      apply();
+      observer.observe(el, { childList: true, subtree: true, characterData: true });
+    });
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [displayContent]);
 
   // Compute text color based on message type
   const textColor = useMemo(() => {
@@ -85,10 +192,8 @@ export const MessageContent = memo(function MessageContent({
   }
 
   return (
-    <div 
-      className="message-content" 
-      style={contentStyle}
-      dangerouslySetInnerHTML={{ __html: htmlContent }}
-    />
+    <div ref={containerRef} className="message-content" style={contentStyle}>
+      <Streamdown>{displayContent}</Streamdown>
+    </div>
   );
 });

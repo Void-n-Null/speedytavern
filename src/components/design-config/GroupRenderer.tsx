@@ -28,6 +28,7 @@ interface GroupRendererProps {
   compact?: boolean;
   groupIndex: number;
   sectionId: string;
+  isMobile?: boolean;
 }
 
 export function GroupRenderer({ 
@@ -37,12 +38,12 @@ export function GroupRenderer({
   compact, 
   groupIndex, 
   sectionId,
+  isMobile,
 }: GroupRendererProps) {
-  // Use selectors to avoid re-renders when unrelated state (activeSection) changes
-  const collapsedGroups = useDesignConfigModalState(s => s.collapsedGroups);
-  const toggleGroupCollapsed = useDesignConfigModalState(s => s.toggleGroupCollapsed);
   const groupKey = `${sectionId}-${groupIndex}`;
-  const isCollapsed = collapsedGroups.has(groupKey);
+  // Use selectors to avoid re-renders when unrelated groups collapse/expand
+  const isCollapsed = useDesignConfigModalState(s => s.collapsedGroups.has(groupKey));
+  const toggleGroupCollapsed = useDesignConfigModalState(s => s.toggleGroupCollapsed);
   
   if (group.showWhen) {
     const conditionValue = getValueByPath(config, group.showWhen.key);
@@ -73,13 +74,14 @@ export function GroupRenderer({
       )}
       {!isCollapsed && (
         <div className={cn("divide-y divide-zinc-800/30", compact && "space-y-1 divide-y-0")}>
-          {group.controls.map((ctrl) => (
+          {visibleControls.map((ctrl) => (
             <ControlRenderer 
               key={ctrl.key} 
               control={ctrl} 
               config={config} 
               onChange={onChange}
               compact={compact}
+              isMobile={isMobile}
             />
           ))}
         </div>

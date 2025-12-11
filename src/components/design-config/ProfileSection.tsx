@@ -11,6 +11,7 @@ import { Card } from './GroupRenderer';
 import { ControlRow } from './controls';
 import { useDesignConfigModalState } from '../../store/designConfigModalState';
 import { defaultMessageStyleConfig } from '../../types/messageStyle';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import {
   useProfileList,
   useCreateProfile,
@@ -28,6 +29,7 @@ import {
 } from '../../hooks/queries/useDesignTemplates';
 
 export function ProfileSection() {
+  const isMobile = useIsMobile();
   const [newName, setNewName] = useState('');
   const [templateName, setTemplateName] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -262,7 +264,7 @@ export function ProfileSection() {
         {/* Load Template */}
         {templates && templates.length > 0 && (
           <div className="mb-3">
-            <ControlRow label="Load Template" description="Apply a saved template">
+            <ControlRow label="Load Template" description="Apply a saved template" isMobile={isMobile}>
               <Select onValueChange={handleLoadTemplate}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Select..." />

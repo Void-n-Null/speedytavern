@@ -48,7 +48,11 @@ export const useDesignConfigModalState = create<DesignConfigModalState>()(
       collapsedGroups: new Set(),
       confirmDialog: { open: false, title: '', message: '', onConfirm: null },
       
-      setActiveSection: (section) => set({ activeSection: section, scrollPosition: 0 }),
+      setActiveSection: (section) => set((s) => {
+        // Avoid triggering rerenders when nothing changes (important for holding arrow keys at list bounds)
+        if (s.activeSection === section) return s;
+        return { activeSection: section, scrollPosition: 0 };
+      }),
       setScrollPosition: (position) => set({ scrollPosition: position }),
       setSearchQuery: (query) => set({ searchQuery: query }),
       toggleCompactMode: () => set((s) => ({ compactMode: !s.compactMode })),

@@ -17,13 +17,14 @@ interface ControlRowProps {
   description?: string;
   children: React.ReactNode;
   inline?: boolean;
+  isMobile?: boolean;
 }
 
-export function ControlRow({ label, description, children, inline = true }: ControlRowProps) {
-  const isMobile = useIsMobile();
+export function ControlRow({ label, description, children, inline = true, isMobile }: ControlRowProps) {
+  const computedIsMobile = isMobile ?? useIsMobile();
   
   // Stacked layout: label on top, control below
-  if (!inline || isMobile) {
+  if (!inline || computedIsMobile) {
     return (
       <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
         <div>
@@ -52,9 +53,10 @@ interface ControlRendererProps {
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   compact?: boolean;
+  isMobile?: boolean;
 }
 
-export function ControlRenderer({ control, config, onChange, compact }: ControlRendererProps) {
+export function ControlRenderer({ control, config, onChange, compact, isMobile }: ControlRendererProps) {
   const value = getValueByPath(config, control.key);
   
   if (control.showWhen) {
@@ -66,10 +68,10 @@ export function ControlRenderer({ control, config, onChange, compact }: ControlR
     case 'select':
       // Special handling for customFontId - dynamic options from server
       if (control.key === 'typography.customFontId') {
-        return <CustomFontSelect control={control} value={value as string} onChange={onChange} compact={compact} />;
+        return <CustomFontSelect control={control} value={value as string} onChange={onChange} compact={compact} isMobile={isMobile} />;
       }
       return (
-        <ControlRow label={control.label} description={compact ? undefined : control.description}>
+        <ControlRow label={control.label} description={compact ? undefined : control.description} isMobile={isMobile}>
           <Select value={value as string} onValueChange={(v) => onChange(control.key, v)}>
             <SelectTrigger className="w-36">
               <SelectValue />
@@ -84,18 +86,18 @@ export function ControlRenderer({ control, config, onChange, compact }: ControlR
       );
 
     case 'font-upload':
-      return <FontUploadControl compact={compact} />;
+      return <FontUploadControl compact={compact} isMobile={isMobile} />;
 
     case 'switch':
       return (
-        <ControlRow label={control.label} description={compact ? undefined : control.description}>
+        <ControlRow label={control.label} description={compact ? undefined : control.description} isMobile={isMobile}>
           <Switch checked={value as boolean} onCheckedChange={(v) => onChange(control.key, v)} />
         </ControlRow>
       );
 
     case 'slider':
       return (
-        <ControlRow label={control.label} description={compact ? undefined : control.description}>
+        <ControlRow label={control.label} description={compact ? undefined : control.description} isMobile={isMobile}>
           <SliderControl
             value={value as number}
             onChange={(v) => onChange(control.key, v)}
@@ -109,7 +111,7 @@ export function ControlRenderer({ control, config, onChange, compact }: ControlR
 
     case 'color':
       return (
-        <ControlRow label={control.label} description={compact ? undefined : control.description}>
+        <ControlRow label={control.label} description={compact ? undefined : control.description} isMobile={isMobile}>
           <ColorPicker 
             value={value as string} 
             onChange={(v) => onChange(control.key, v)}
@@ -119,7 +121,7 @@ export function ControlRenderer({ control, config, onChange, compact }: ControlR
 
     case 'text':
       return (
-        <ControlRow label={control.label} description={compact ? undefined : control.description} inline={false}>
+        <ControlRow label={control.label} description={compact ? undefined : control.description} inline={false} isMobile={isMobile}>
           <input
             type="text"
             value={(value as string) || ''}
@@ -141,12 +143,14 @@ function CustomFontSelect({
   control, 
   value, 
   onChange, 
-  compact 
+  compact,
+  isMobile,
 }: { 
   control: ControlDefinition; 
   value: string; 
   onChange: (key: string, value: unknown) => void;
   compact?: boolean;
+  isMobile?: boolean;
 }) {
   const { data: fonts, isLoading } = useFonts();
   const uploadMutation = useUploadFont();
@@ -177,7 +181,7 @@ function CustomFontSelect({
   };
 
   return (
-    <ControlRow label={control.label} description={compact ? undefined : control.description}>
+    <ControlRow label={control.label} description={compact ? undefined : control.description} isMobile={isMobile}>
       <div className="flex items-center gap-2">
         <Select 
           value={value || ''} 
@@ -237,7 +241,7 @@ function CustomFontSelect({
 
 // ============ Standalone Font Upload Control ============
 
-function FontUploadControl({ compact }: { compact?: boolean }) {
+function FontUploadControl({ compact, isMobile }: { compact?: boolean; isMobile?: boolean }) {
   const { data: fonts } = useFonts();
   const uploadMutation = useUploadFont();
   const deleteMutation = useDeleteFont();
@@ -261,6 +265,7 @@ function FontUploadControl({ compact }: { compact?: boolean }) {
       label="Upload Custom Font" 
       description={compact ? undefined : 'Upload .ttf, .otf, .woff, or .woff2 files'}
       inline={false}
+      isMobile={isMobile}
     >
       <div className="space-y-2">
         <button

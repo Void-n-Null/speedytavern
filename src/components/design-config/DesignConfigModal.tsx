@@ -8,7 +8,7 @@
  * - Toast notifications for all actions
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, memo, startTransition, useCallback } from 'react';
 import { ChevronRight, Rows3, LayoutGrid } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { cn } from '../../lib/utils';
@@ -17,6 +17,7 @@ import { Button } from '../ui/button';
 import { useActiveMessageStyle } from '../../hooks/queries/useProfiles';
 import { interfaceDesignSections, type ControlDefinition } from './designConfigSchema';
 import { useDesignConfigModalState } from '../../store/designConfigModalState';
+import { useShallow } from 'zustand/react/shallow';
 
 // Extracted components
 import { ControlRenderer } from './controls';
@@ -29,6 +30,48 @@ interface DesignConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const SectionContent = memo(function SectionContent({
+  sectionId,
+  compactMode,
+  config,
+  onChange,
+  section,
+  isMobile,
+}: {
+  sectionId: string;
+  compactMode: boolean;
+  config: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+  section: typeof interfaceDesignSections[number];
+  isMobile: boolean;
+}) {
+  return (
+    <div className={cn(!isMobile && 'max-w-3xl space-y-4', isMobile && 'space-y-3')}>
+      <div className={cn(isMobile ? 'mb-4' : 'mb-5')}>
+        <h3 className="text-sm font-semibold text-zinc-100">{section.label}</h3>
+        <p className="text-xs text-zinc-500 mt-0.5">{section.description}</p>
+      </div>
+
+      {sectionId === 'profile' ? (
+        <ProfileSection />
+      ) : (
+        section.groups.map((group, i) => (
+          <GroupRenderer
+            key={group.title || i}
+            group={group}
+            config={config}
+            onChange={onChange}
+            compact={compactMode}
+            groupIndex={i}
+            sectionId={sectionId}
+            isMobile={isMobile}
+          />
+        ))
+      )}
+    </div>
+  );
+});
 
 // ============ Confirmation Dialog ============
 
@@ -76,11 +119,13 @@ function SearchResults({
   config, 
   onChange,
   onNavigate,
+  isMobile,
 }: { 
   query: string; 
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   onNavigate: (sectionId: string) => void;
+  isMobile: boolean;
 }) {
   const results = useMemo(() => {
     if (!query.trim()) return [];
@@ -130,6 +175,7 @@ function SearchResults({
             config={config}
             onChange={onChange}
             compact
+            isMobile={isMobile}
           />
         </div>
       ))}
@@ -141,10 +187,23 @@ function SearchResults({
 
 export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps) {
   const isMobile = useIsMobile();
-  const { 
-    activeSection, searchQuery, compactMode,
-    setActiveSection, setSearchQuery, toggleCompactMode,
-  } = useDesignConfigModalState();
+  const {
+    activeSection,
+    searchQuery,
+    compactMode,
+    setActiveSection,
+    setSearchQuery,
+    toggleCompactMode,
+  } = useDesignConfigModalState(
+    useShallow((s) => ({
+      activeSection: s.activeSection,
+      searchQuery: s.searchQuery,
+      compactMode: s.compactMode,
+      setActiveSection: s.setActiveSection,
+      setSearchQuery: s.setSearchQuery,
+      toggleCompactMode: s.toggleCompactMode,
+    }))
+  );
   
   const scrollRef = useRef<HTMLElement>(null);
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -178,7 +237,7 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
         const nextIndex = e.key === 'ArrowDown' 
           ? Math.min(currentIndex + 1, sectionIds.length - 1)
           : Math.max(currentIndex - 1, 0);
-        setActiveSection(sectionIds[nextIndex]);
+        startTransition(() => setActiveSection(sectionIds[nextIndex]));
       }
     };
     
@@ -187,19 +246,23 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
   }, [open, searchExpanded, setActiveSection]);
   
   const { config, isLoading, isPending, updateConfig } = useActiveMessageStyle();
+  const configRef = useRef<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    configRef.current = (config as unknown as Record<string, unknown>) ?? null;
+  }, [config]);
   
   // Generic path-based updater - no need to wire up individual setters
   // Adding a new config section just requires updating the schema and types
-  const handleChange = (key: string, value: unknown) => {
+  const handleChange = useCallback((key: string, value: unknown) => {
     const parts = key.split('.');
     if (parts.length === 2) {
       const [section, prop] = parts;
-      const currentSection = (config as unknown as Record<string, Record<string, unknown>>)?.[section] ?? {};
+      const currentSection = (configRef.current as Record<string, Record<string, unknown>> | null)?.[section] ?? {};
       updateConfig({
         [section]: { ...currentSection, [prop]: value }
       });
     }
-  };
+  }, [updateConfig]);
 
   if (isLoading || !config) {
     return (
@@ -212,6 +275,7 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
   }
 
   const currentSection = interfaceDesignSections.find((s) => s.id === activeSection);
+  const configRecord = config as unknown as Record<string, unknown>;
 
   // Mobile layout
   if (isMobile) {
@@ -249,26 +313,14 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
           >
             {currentSection && (
               <div className="space-y-3">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-zinc-100">{currentSection.label}</h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">{currentSection.description}</p>
-                </div>
-
-                {currentSection.id === 'profile' ? (
-                  <ProfileSection />
-                ) : (
-                  currentSection.groups.map((group, i) => (
-                    <GroupRenderer 
-                      key={group.title || i} 
-                      group={group} 
-                      config={config as unknown as Record<string, unknown>} 
-                      onChange={handleChange}
-                      compact={compactMode}
-                      groupIndex={i}
-                      sectionId={currentSection.id}
-                    />
-                  ))
-                )}
+                <SectionContent
+                  sectionId={currentSection.id}
+                  compactMode={compactMode}
+                  config={configRecord}
+                  onChange={handleChange}
+                  section={currentSection}
+                  isMobile={true}
+                />
               </div>
             )}
           </main>
@@ -336,7 +388,7 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
               <button
                 key={section.id}
                 onClick={() => {
-                  setActiveSection(section.id);
+                  startTransition(() => setActiveSection(section.id));
                   setSearchExpanded(false);
                   setSearchQuery('');
                 }}
@@ -370,38 +422,25 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
             {searchExpanded && searchQuery ? (
               <SearchResults
                 query={searchQuery}
-                config={config as unknown as Record<string, unknown>}
+                config={configRecord}
                 onChange={handleChange}
+                isMobile={isMobile}
                 onNavigate={(sectionId) => {
-                  setActiveSection(sectionId);
+                  startTransition(() => setActiveSection(sectionId));
                   setSearchExpanded(false);
                   setSearchQuery('');
                 }}
               />
-            ) : currentSection && (
-              <div className="max-w-3xl space-y-4">
-                <div className="mb-5">
-                  <h3 className="text-sm font-semibold text-zinc-100">{currentSection.label}</h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">{currentSection.description}</p>
-                </div>
-
-                {currentSection.id === 'profile' ? (
-                  <ProfileSection />
-                ) : (
-                  currentSection.groups.map((group, i) => (
-                    <GroupRenderer 
-                      key={group.title || i} 
-                      group={group} 
-                      config={config as unknown as Record<string, unknown>} 
-                      onChange={handleChange}
-                      compact={compactMode}
-                      groupIndex={i}
-                      sectionId={currentSection.id}
-                    />
-                  ))
-                )}
-              </div>
-            )}
+            ) : currentSection ? (
+              <SectionContent
+                sectionId={currentSection.id}
+                compactMode={compactMode}
+                config={configRecord}
+                onChange={handleChange}
+                section={currentSection}
+                isMobile={false}
+              />
+            ) : null}
           </main>
         </div>
         

@@ -32,7 +32,22 @@ export function useStreamingDemo() {
         if (!started) return;
         
         // Simulate streaming tokens
-        const text = "\"Dear Princess Celestia,\" `Today, I learned that everypony deserves a chance to be their best self.` *It's important to remember that kindness and understanding can overcome any challenge.* **Please consider this a gentle reminder that we are all capable of growth and change.**";
+        const text =
+          "\"Dear Princess Celestia,\"\n\n" +
+          "`Today, I learned that everypony deserves a chance to be their best self.`\n\n" +
+          "*It's important to remember that kindness and understanding can overcome any challenge.*\n\n" +
+          "**Please consider this a gentle reminder that we are all capable of growth and change.**\n\n" +
+          "```ts\n" +
+          "// Big bad codeblock\n" +
+          "if (condition) {\n" +
+          "  this;\n" +
+          "} else {\n" +
+          "  that;\n" +
+          "}\n" +
+          "```\n";
+        // #region agent log (hypothesis A)
+        fetch('http://127.0.0.1:7242/ingest/d54406b6-69ad-486f-a813-cd243ee8a1af',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre',hypothesisId:'A',location:'src/hooks/useStreamingDemo.ts:36',message:'demo streaming text prepared',data:{len:text.length,fenceCount:(text.match(/```/g)||[]).length,openFenceOnOwnLine:/\n```/.test(text),closeFenceOnOwnLine:/\n```\s*$/.test(text),tail:text.slice(-40)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         let index = 0;
         
         // Clear any existing interval
