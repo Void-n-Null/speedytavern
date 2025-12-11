@@ -30,6 +30,13 @@ let parser: StreamingParser | null = null;
 type ContentListener = (html: string, raw: string) => void;
 const contentListeners = new Set<ContentListener>();
 
+// ============ Flush scheduling (frame-throttled) ============
+/**
+ * Streaming can arrive character-by-character. Parsing & notifying on every chunk is O(n^2).
+ * We instead coalesce updates to at most once per animation frame.
+ */
+let flushScheduled = false;
+
 /** Subscribe to content updates (for ref-based DOM updates) */
 export function subscribeToContent(listener: ContentListener): () => void {
   contentListeners.add(listener);
@@ -104,12 +111,23 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     // Update buffer (no re-render)
     contentBuffer += chunk;
     parser?.append(chunk);
-    
-    // Increment version for external store compatibility
-    set(state => ({ contentVersion: state.contentVersion + 1 }));
-    
-    // Notify DOM listeners (ref-based updates)
-    notifyContentListeners();
+
+    // Coalesce parse + notify to once per frame.
+    if (flushScheduled) return;
+    flushScheduled = true;
+
+    const schedule =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16) as unknown as number;
+
+    schedule(() => {
+      flushScheduled = false;
+      // Increment version for external store compatibility
+      set(state => ({ contentVersion: state.contentVersion + 1 }));
+      // Notify DOM listeners (ref-based updates)
+      notifyContentListeners();
+    });
   },
 
   setContent: (content) => {
@@ -119,7 +137,9 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     contentBuffer = content;
     parser?.reset();
     parser?.append(content);
-    
+
+    // Immediate flush for full content replacement.
+    flushScheduled = false;
     set(state => ({ contentVersion: state.contentVersion + 1 }));
     notifyContentListeners();
   },

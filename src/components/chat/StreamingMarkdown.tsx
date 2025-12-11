@@ -61,55 +61,43 @@ export const StreamingMarkdown = memo(function StreamingMarkdown({
   style,
   className,
 }: StreamingMarkdownProps) {
+  // Keep React state so Streamdown can render incomplete markdown correctly,
+  // but throttle updates to at most once per animation frame.
   const [content, setContent] = useState(() => getStreamingContent());
   const containerRef = useRef<HTMLDivElement>(null);
+  const pendingRawRef = useRef<string | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Subscribe to raw content updates
     const unsubscribe = subscribeToContent((_html, raw) => {
-      setContent(raw);
+      // Coalesce setState to one per frame; streaming can be character-by-character.
+      pendingRawRef.current = raw;
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          const nextRaw = pendingRawRef.current;
+          pendingRawRef.current = null;
+          if (nextRaw == null) return;
+          setContent(nextRaw);
+        });
+      }
     });
 
     return unsubscribe;
   }, []);
 
-  // Use MutationObserver to wrap quotes whenever DOM changes
+  // Wrap quotes after Streamdown updates the DOM (throttled by store + rAF setState).
   useEffect(() => {
     if (!containerRef.current) return;
-    
-    let isProcessing = false;
-    
-    const observer = new MutationObserver(() => {
-      if (containerRef.current && !isProcessing) {
-        isProcessing = true;
-        // Use requestAnimationFrame to batch and avoid infinite loops
-        requestAnimationFrame(() => {
-          if (containerRef.current) {
-            wrapQuotesInElement(containerRef.current);
-          }
-          isProcessing = false;
-        });
-      }
-    });
-    
-    observer.observe(containerRef.current, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-    
-    // Initial wrap
+    // Fast bail-out: no quotes, nothing to do.
+    if (!content.includes('"')) return;
     wrapQuotesInElement(containerRef.current);
-    
-    return () => observer.disconnect();
-  }, []);
-
-  // Pre-process: optimistically close unclosed quotes for immediate coloring
-  const processedContent = optimisticallyCloseQuotes(content);
+  }, [content]);
 
   return (
     <div ref={containerRef} className={className} style={style}>
-      <Streamdown>{processedContent}</Streamdown>
+      <Streamdown>{optimisticallyCloseQuotes(content)}</Streamdown>
     </div>
   );
 });
