@@ -8,6 +8,10 @@
   </head>
   <body style="background: #171717;">
     <div id="root"></div>
+    <script>
+      // Ensure React DevTools can hook in before React loads
+      window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = window.__REACT_DEVTOOLS_GLOBAL_HOOK__ || { supportsFiber: true, inject: function(){}, onCommitFiberRoot: function(){}, onCommitFiberUnmount: function(){} };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

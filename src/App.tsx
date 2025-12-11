@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import { Settings } from 'lucide-react';
 import { MessageList } from './components/chat';
-import { MessageStyleSettings } from './components/settings/MessageStyleSettings';
+import { DesignConfigModal } from './components/design-config/DesignConfigModal';
 import { useServerChat } from './hooks/queries';
 import { useStreamingDemo } from './hooks/useStreamingDemo';
+import { usePageBackgroundConfig } from './store/messageStyleStore';
+import { Button } from './components/ui/button';
+import { ToastContainer } from './components/ui/toast';
 
 /**
  * Root application component.
@@ -12,17 +16,25 @@ import { useStreamingDemo } from './hooks/useStreamingDemo';
 export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const { isLoading, error } = useServerChat();
+  const pageBackground = usePageBackgroundConfig();
+
+  // Build background style based on config
+  const bgStyle: React.CSSProperties = pageBackground.type === 'color'
+    ? { backgroundColor: pageBackground.color }
+    : pageBackground.type === 'image' && pageBackground.imageUrl
+    ? {
+        backgroundColor: '#000',
+        backgroundImage: `linear-gradient(rgba(0,0,0,${1 - pageBackground.opacity / 100}), rgba(0,0,0,${1 - pageBackground.opacity / 100})), url(${pageBackground.imageUrl})`,
+        backgroundSize: pageBackground.size,
+        backgroundPosition: pageBackground.position,
+        backgroundRepeat: pageBackground.repeat,
+        backgroundAttachment: 'fixed',
+      }
+    : {};
 
   if (isLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh',
-        color: '#888',
-        fontSize: 18,
-      }}>
+      <div className="flex items-center justify-center h-screen text-zinc-500 text-lg">
         Loading chat from server...
       </div>
     );
@@ -30,57 +42,31 @@ export function App() {
 
   if (error) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh',
-        color: '#f44',
-        fontSize: 18,
-      }}>
+      <div className="flex items-center justify-center h-screen text-red-500 text-lg">
         Error loading chat: {error.message}
       </div>
     );
   }
 
   return (
-    <div className="app" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+    <div className="app flex h-screen overflow-hidden" style={bgStyle}>
+      <div className="flex-1 h-full overflow-hidden">
         <MessageList />
       </div>
       
-      {showSettings && (
-        <div style={{
-          width: 320,
-          height: '100vh',
-          overflow: 'auto',
-          borderLeft: '1px solid #333',
-          padding: 16,
-          background: '#1a1a1a',
-        }}>
-          <MessageStyleSettings />
-        </div>
-      )}
-      
-      <button
-        onClick={() => setShowSettings(!showSettings)}
-        style={{
-          position: 'fixed',
-          top: 16,
-          right: 16,
-          padding: '8px 12px',
-          background: '#333',
-          border: 'none',
-          borderRadius: 4,
-          color: '#fff',
-          cursor: 'pointer',
-          zIndex: 1000,
-        }}
+      <Button
+        onClick={() => setShowSettings(true)}
+        variant="secondary"
+        size="icon"
+        className="fixed top-4 right-4 z-50 shadow-lg"
       >
-        {showSettings ? 'Hide Settings' : 'Settings'}
-      </button>
+        <Settings className="h-5 w-5" />
+      </Button>
+      
+      <DesignConfigModal open={showSettings} onOpenChange={setShowSettings} />
       
       <StreamingDemo />
+      <ToastContainer />
     </div>
   );
 }
@@ -93,16 +79,7 @@ function StreamingDemo() {
   const { isStreaming } = useStreamingDemo();
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 16,
-      right: 16,
-      padding: '8px 12px',
-      background: 'rgba(0,0,0,0.8)',
-      borderRadius: 8,
-      fontSize: 12,
-      color: '#888',
-    }}>
+    <div className="fixed bottom-4 right-4 px-3 py-2 bg-black/80 rounded-lg text-xs text-zinc-500">
       {isStreaming ? (
         <span>Streaming... [Enter] finalize | [Esc] cancel</span>
       ) : (

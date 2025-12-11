@@ -40,4 +40,12 @@ export const queryKeys = {
     all: ['settings'] as const,
     detail: (key: string) => [...queryKeys.settings.all, key] as const,
   },
+  
+  // Profiles
+  profiles: {
+    all: ['profiles'] as const,
+    list: () => [...queryKeys.profiles.all, 'list'] as const,
+    detail: (id: string) => [...queryKeys.profiles.all, 'detail', id] as const,
+    active: () => [...queryKeys.profiles.all, 'active'] as const,
+  },
 };

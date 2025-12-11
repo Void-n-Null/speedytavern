@@ -75,6 +75,28 @@ export function initDb(): Database {
     )
   `);
   
+  db.run(`
+    CREATE TABLE IF NOT EXISTS profiles (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      message_style TEXT NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+  
+  db.run(`
+    CREATE TABLE IF NOT EXISTS design_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      config TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+  
   // Indexes for fast lookups
   db.run('CREATE INDEX IF NOT EXISTS idx_nodes_chat ON chat_nodes(chat_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_nodes_parent ON chat_nodes(parent_id)');

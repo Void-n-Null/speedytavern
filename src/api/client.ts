@@ -5,6 +5,7 @@
 
 import type { ChatNode, Speaker } from '../types/chat';
 import type { MessageStyleConfig } from '../types/messageStyle';
+import type { Profile, ProfileMeta, CreateProfileRequest, UpdateProfileRequest } from '../types/profile';
 
 const API_BASE = '/api';
 
@@ -217,4 +218,78 @@ export const health = {
 
 export const defaultChat = {
   getId: () => api<{ id: string }>('/default-chat'),
+};
+
+// ============ Profiles ============
+
+export const profiles = {
+  list: () => api<ProfileMeta[]>('/profiles'),
+
+  get: (id: string) => api<Profile>(`/profiles/${id}`),
+
+  getActive: () => api<Profile>('/profiles/active'),
+
+  create: (data: CreateProfileRequest) =>
+    api<Profile>('/profiles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: UpdateProfileRequest) =>
+    api<Profile>(`/profiles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    api<{ success: boolean }>(`/profiles/${id}`, { method: 'DELETE' }),
+
+  activate: (id: string) =>
+    api<{ success: boolean; updatedAt: number }>(`/profiles/${id}/activate`, {
+      method: 'POST',
+    }),
+};
+
+// ============ Design Templates ============
+
+export interface DesignTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  config: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateTemplateInput {
+  name: string;
+  description?: string;
+  config: Record<string, unknown>;
+}
+
+export interface UpdateTemplateInput {
+  name?: string;
+  description?: string;
+  config?: Record<string, unknown>;
+}
+
+export const designTemplates = {
+  list: () => api<DesignTemplate[]>('/design-templates'),
+  
+  get: (id: string) => api<DesignTemplate>(`/design-templates/${id}`),
+  
+  create: (data: CreateTemplateInput) =>
+    api<DesignTemplate>('/design-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  update: (id: string, data: UpdateTemplateInput) =>
+    api<DesignTemplate>(`/design-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  
+  delete: (id: string) =>
+    api<{ success: boolean }>(`/design-templates/${id}`, { method: 'DELETE' }),
 };

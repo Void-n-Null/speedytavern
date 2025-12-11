@@ -5,6 +5,8 @@ import { initDb, closeDb } from './db';
 import { chatRoutes } from './routes/chats';
 import { settingsRoutes } from './routes/settings';
 import { speakerRoutes } from './routes/speakers';
+import { profileRoutes, seedDefaultProfileIfEmpty } from './routes/profiles';
+import designTemplateRoutes from './routes/designTemplates';
 import { seedDemoDataIfEmpty } from './seed';
 
 const app = new Hono();
@@ -34,11 +36,14 @@ app.get('/api/default-chat', (c) => {
 app.route('/api/chats', chatRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/speakers', speakerRoutes);
+app.route('/api/profiles', profileRoutes);
+app.route('/api/design-templates', designTemplateRoutes);
 
 // Initialize database and start server
 const port = Number(process.env.PORT) || 3001;
 
 initDb();
+seedDefaultProfileIfEmpty();
 defaultChatId = seedDemoDataIfEmpty();
 
 console.log(`🚀 Server running at http://localhost:${port}`);

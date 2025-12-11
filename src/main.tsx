@@ -1,11 +1,6 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { QueryClientProvider } from '@tanstack/react-query';
+// react-scan MUST be imported and initialized BEFORE React
+// Using dynamic imports to ensure proper initialization order
 import { scan } from 'react-scan';
-import './index.css';
-import './components/chat/chat.css';
-import { App } from './App';
-import { queryClient } from './lib/queryClient';
 
 // Enable react-scan for render visualization
 // Disabled on Firefox due to severe performance issues (github.com/aidenybai/react-scan/issues/400)
@@ -19,20 +14,44 @@ if (shouldEnable) {
   scan({
     enabled: true,
     log: true,
+    showToolbar: true,
   });
 } else if (isFirefox) {
   console.log('[react-scan] Disabled on Firefox due to performance issues');
 }
 
-/**
- * Application entry point.
- * 
- * Single responsibility: Mount React app to DOM.
- */
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </StrictMode>,
-);
+// Dynamic imports ensure React loads AFTER scan() initializes
+const bootstrap = async () => {
+  const [
+    { StrictMode },
+    { createRoot },
+    { QueryClientProvider },
+    { App },
+    { queryClient },
+  ] = await Promise.all([
+    import('react'),
+    import('react-dom/client'),
+    import('@tanstack/react-query'),
+    import('./App'),
+    import('./lib/queryClient'),
+  ]);
+
+  // CSS imports (side-effect only)
+  await import('./index.css');
+  await import('./components/chat/chat.css');
+
+  /**
+   * Application entry point.
+   * 
+   * Single responsibility: Mount React app to DOM.
+   */
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+};
+
+bootstrap();

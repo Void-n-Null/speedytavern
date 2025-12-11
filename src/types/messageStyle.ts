@@ -115,6 +115,22 @@ export interface EditConfig {
   buttonPosition: EditButtonPosition;
 }
 
+// ============ Page Background ============
+export type BackgroundType = 'color' | 'image' | 'none';
+export type BackgroundSize = 'cover' | 'contain' | 'auto';
+export type BackgroundPosition = 'center' | 'top' | 'bottom' | 'left' | 'right';
+export type BackgroundRepeat = 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y';
+
+export interface PageBackgroundConfig {
+  type: BackgroundType;
+  color: string;
+  imageUrl: string;
+  size: BackgroundSize;
+  position: BackgroundPosition;
+  repeat: BackgroundRepeat;
+  opacity: number;              // 0-100, for image overlay
+}
+
 // ============ Full Config ============
 export interface MessageStyleConfig {
   typography: TypographyConfig;
@@ -125,6 +141,7 @@ export interface MessageStyleConfig {
   timestamp: TimestampConfig;
   animation: AnimationConfig;
   edit: EditConfig;
+  pageBackground: PageBackgroundConfig;
   speakerOverrides: Record<string, Partial<MessageStyleConfig>>;
 }
 
@@ -198,6 +215,16 @@ export const defaultEdit: EditConfig = {
   buttonPosition: 'below',
 };
 
+export const defaultPageBackground: PageBackgroundConfig = {
+  type: 'color',
+  color: '#1a1a2e',
+  imageUrl: '',
+  size: 'cover',
+  position: 'center',
+  repeat: 'no-repeat',
+  opacity: 100,
+};
+
 export const defaultMessageStyleConfig: MessageStyleConfig = {
   typography: defaultTypography,
   layout: defaultLayout,
@@ -207,6 +234,7 @@ export const defaultMessageStyleConfig: MessageStyleConfig = {
   timestamp: defaultTimestamp,
   animation: defaultAnimation,
   edit: defaultEdit,
+  pageBackground: defaultPageBackground,
   speakerOverrides: {},
 };
 
