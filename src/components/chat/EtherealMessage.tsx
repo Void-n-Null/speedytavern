@@ -111,7 +111,9 @@ export const EtherealMessage = memo(function EtherealMessage() {
 
   // Content styles for streaming markdown
   const contentStyle: CSSProperties = useMemo(() => ({
-    fontSize: fontSizeMap[typography.fontSize],
+    fontSize: typography.fontSize === 'custom' 
+      ? `${typography.customFontSizePx}px` 
+      : fontSizeMap[typography.fontSize],
     lineHeight: lineHeightMap[typography.lineHeight],
     fontFamily: fontFamilyMap[typography.fontFamily],
     fontWeight: fontWeightMap[typography.fontWeight],

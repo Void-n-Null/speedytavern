@@ -6,13 +6,14 @@
 import defaultTemplate from '../config/defaultTemplate.json';
 
 // ============ Typography ============
-export type FontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type FontSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'custom';
 export type LineHeight = 'tight' | 'normal' | 'relaxed';
 export type FontFamily = 'open-sans' | 'red-hat-mono' | 'source-code-pro' | 'poppins' | 'oswald' | 'custom';
 export type FontWeight = 'normal' | 'medium' | 'bold';
 
 export interface TypographyConfig {
   fontSize: FontSize;
+  customFontSizePx: number;   // Custom font size in px (when fontSize = 'custom')
   lineHeight: LineHeight;
   fontFamily: FontFamily;
   fontWeight: FontWeight;
@@ -194,6 +195,7 @@ export const fontSizeMap: Record<FontSize, string> = {
   md: '16px',
   lg: '18px',
   xl: '20px',
+  custom: 'inherit', // Use customFontSizePx instead when fontSize === 'custom'
 };
 
 export const lineHeightMap: Record<LineHeight, string> = {

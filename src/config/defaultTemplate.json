@@ -1,6 +1,7 @@
 {
   "typography": {
     "fontSize": "md",
+    "customFontSizePx": 16,
     "lineHeight": "normal",
     "fontFamily": "open-sans",
     "fontWeight": "normal",

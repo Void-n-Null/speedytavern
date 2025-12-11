@@ -26,10 +26,15 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** When true, dialog takes full screen (useful for mobile) */
+  fullscreen?: boolean;
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, children, fullscreen, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -38,16 +43,23 @@ const DialogContent = React.forwardRef<
       onOpenAutoFocus={(e) => e.preventDefault()}
       onCloseAutoFocus={(e) => e.preventDefault()}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2',
-        'max-w-5xl max-h-[85vh]',
-        'bg-zinc-950 border border-zinc-800/50 rounded-2xl shadow-2xl',
+        'fixed z-50 w-full bg-zinc-950 shadow-2xl',
         'focus:outline-none focus:ring-0',
         'duration-200',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-        'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]',
-        'data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
+        fullscreen
+          ? // Fullscreen mode (mobile)
+            'inset-0 rounded-none border-0'
+          : // Centered mode (desktop)
+            cn(
+              'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+              'max-w-5xl max-h-[85vh]',
+              'border border-zinc-800/50 rounded-2xl',
+              'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+              'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]',
+              'data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]'
+            ),
         className
       )}
       {...props}

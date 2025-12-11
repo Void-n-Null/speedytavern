@@ -9,7 +9,8 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Paintbrush, ChevronRight, Rows3, LayoutGrid } from 'lucide-react';
+import { ChevronRight, Rows3, LayoutGrid } from 'lucide-react';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { cn } from '../../lib/utils';
 import { Dialog, DialogContent } from '../ui/dialog';
 import { Button } from '../ui/button';
@@ -22,6 +23,7 @@ import { ControlRenderer } from './controls';
 import { GroupRenderer } from './GroupRenderer';
 import { ProfileSection } from './ProfileSection';
 import { ExpandableSearch } from '../ui/expandable-search';
+import { MobileSectionNav } from './MobileSectionNav';
 
 interface DesignConfigModalProps {
   open: boolean;
@@ -138,6 +140,7 @@ function SearchResults({
 // ============ Main Modal ============
 
 export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps) {
+  const isMobile = useIsMobile();
   const { 
     activeSection, searchQuery, compactMode,
     setActiveSection, setSearchQuery, toggleCompactMode,
@@ -201,7 +204,7 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
   if (isLoading || !config) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent fullscreen={isMobile}>
           <div className="flex items-center justify-center h-80 text-zinc-500">Loading...</div>
         </DialogContent>
       </Dialog>
@@ -210,6 +213,73 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
 
   const currentSection = interfaceDesignSections.find((s) => s.id === activeSection);
 
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent fullscreen className="p-0 gap-0 overflow-hidden flex flex-col">
+          {/* Mobile Header - Compact */}
+          <header className="shrink-0 px-4 py-3 border-b border-zinc-800/50 bg-zinc-950 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-100">Interface Design</h2>
+            <div className="flex items-center gap-2 pr-8">
+              {isPending && (
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+              )}
+              <button
+                onClick={toggleCompactMode}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors",
+                  compactMode 
+                    ? "bg-violet-500/20 text-violet-400" 
+                    : "text-zinc-500 active:bg-zinc-800/50"
+                )}
+              >
+                {compactMode ? <Rows3 className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              </button>
+            </div>
+          </header>
+
+          {/* Mobile Section Navigation - Horizontal scroll */}
+          <MobileSectionNav />
+
+          {/* Mobile Content - Full width scroll */}
+          <main 
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto p-4 bg-zinc-950/20"
+          >
+            {currentSection && (
+              <div className="space-y-3">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-zinc-100">{currentSection.label}</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">{currentSection.description}</p>
+                </div>
+
+                {currentSection.id === 'profile' ? (
+                  <ProfileSection />
+                ) : (
+                  currentSection.groups.map((group, i) => (
+                    <GroupRenderer 
+                      key={group.title || i} 
+                      group={group} 
+                      config={config as unknown as Record<string, unknown>} 
+                      onChange={handleChange}
+                      compact={compactMode}
+                      groupIndex={i}
+                      sectionId={currentSection.id}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </main>
+          
+          <ConfirmDialog />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Desktop layout (unchanged)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 gap-0 overflow-hidden flex flex-col h-[85vh] max-w-5xl">

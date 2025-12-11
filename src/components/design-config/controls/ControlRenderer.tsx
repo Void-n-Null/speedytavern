@@ -10,6 +10,7 @@ import { ColorPicker } from './ColorPicker';
 import { SliderControl } from './SliderControl';
 import { getValueByPath, type ControlDefinition } from '../designConfigSchema';
 import { useFonts, useUploadFont, useDeleteFont } from '../../../hooks/queries/useFonts';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 interface ControlRowProps {
   label: string;
@@ -19,7 +20,10 @@ interface ControlRowProps {
 }
 
 export function ControlRow({ label, description, children, inline = true }: ControlRowProps) {
-  if (!inline) {
+  const isMobile = useIsMobile();
+  
+  // Stacked layout: label on top, control below
+  if (!inline || isMobile) {
     return (
       <div className="space-y-2 py-2.5 first:pt-0 last:pb-0">
         <div>
@@ -31,6 +35,7 @@ export function ControlRow({ label, description, children, inline = true }: Cont
     );
   }
   
+  // Inline layout: label left, control right (desktop only)
   return (
     <div className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
       <div className="min-w-0">

@@ -44,12 +44,14 @@ export const MessageContent = memo(function MessageContent({
 
   // Content styles
   const contentStyle = useMemo((): CSSProperties => ({
-    fontSize: fontSizeMap[typography.fontSize],
+    fontSize: typography.fontSize === 'custom' 
+      ? `${typography.customFontSizePx}px` 
+      : fontSizeMap[typography.fontSize],
     lineHeight: lineHeightMap[typography.lineHeight],
     fontFamily: fontFamilyMap[typography.fontFamily],
     fontWeight: fontWeightMap[typography.fontWeight],
     color: textColor,
-  }), [typography.fontSize, typography.lineHeight, typography.fontFamily, typography.fontWeight, textColor]);
+  }), [typography.fontSize, typography.customFontSizePx, typography.lineHeight, typography.fontFamily, typography.fontWeight, textColor]);
 
   // Edit textarea styles
   const editStyle = useMemo((): CSSProperties => {
