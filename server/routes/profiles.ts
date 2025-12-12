@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { prepare, transaction } from '../db';
 import type { MessageStyleConfig } from '../../src/types/messageStyle';
-import { defaultMessageStyleConfig } from '../../src/types/messageStyle';
+import { defaultMessageStyleConfig, applyMessageStyleDefaults } from '../../src/types/messageStyle';
 
 export const profileRoutes = new Hono();
 
@@ -32,10 +32,11 @@ interface ProfileMetaResponse {
 }
 
 function rowToProfile(row: ProfileRow): ProfileResponse {
+  const parsed = JSON.parse(row.message_style) as Partial<MessageStyleConfig>;
   return {
     id: row.id,
     name: row.name,
-    messageStyle: JSON.parse(row.message_style),
+    messageStyle: applyMessageStyleDefaults(parsed),
     isDefault: row.is_default === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

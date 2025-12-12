@@ -257,9 +257,10 @@ export function DesignConfigModal({ open, onOpenChange }: DesignConfigModalProps
     const parts = key.split('.');
     if (parts.length === 2) {
       const [section, prop] = parts;
-      const currentSection = (configRef.current as Record<string, Record<string, unknown>> | null)?.[section] ?? {};
       updateConfig({
-        [section]: { ...currentSection, [prop]: value }
+        // Only send the changed property. Merging happens in `useActiveMessageStyle.updateConfig`
+        // against the latest cached profile to avoid stale-write clobbering.
+        [section]: { [prop]: value }
       });
     }
   }, [updateConfig]);

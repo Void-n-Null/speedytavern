@@ -84,11 +84,19 @@ export function App() {
 function StreamingDebugPanel() {
   const debug = useStreamingDebug();
 
+  // Keep hook mounted for keyboard shortcuts, but hide UI until first Start ('s').
+  if (!debug.uiVisible) return null;
+
   return (
     <div className="fixed bottom-4 right-4 z-50 w-[360px] rounded-lg border border-zinc-700 bg-black/80 p-3 text-xs text-zinc-200 shadow-lg backdrop-blur">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="text-sm font-semibold text-zinc-100">Streaming Debug</div>
-        <div className="text-[10px] text-zinc-400">[S] start • [Enter] finalize • [Esc] cancel</div>
+        <div className="flex items-center gap-2">
+          <div className="text-[10px] text-zinc-400">[S] start • [Enter] finalize • [Esc] cancel</div>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px]" onClick={debug.hideUi}>
+            Hide
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

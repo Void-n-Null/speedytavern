@@ -208,6 +208,10 @@ async function chunkByOpenAITokens(
 }
 
 export interface StreamingDebugState {
+  // UI
+  uiVisible: boolean;
+  hideUi: () => void;
+
   // Streaming state
   isStreaming: boolean;
   isFeeding: boolean;
@@ -251,6 +255,9 @@ export interface StreamingDebugState {
  */
 export function useStreamingDebug(): StreamingDebugState {
   const streaming = useStreaming();
+
+  // Hidden by default; becomes visible on first Start (including keyboard 's').
+  const [uiVisible, setUiVisible] = useState(false);
 
   const [scenarioId, setScenarioId] = useState<StreamingDebugScenarioId>('markdown');
   const [chunkMode, setChunkMode] = useState<StreamingDebugChunkMode>('characters');
@@ -301,6 +308,8 @@ export function useStreamingDebug(): StreamingDebugState {
   }, [chunkMode, scenario.content, charsPerChunk, openAIEncoding, tokensPerChunk]);
 
   const start = useCallback(async () => {
+    setUiVisible(true);
+
     // New run; also abort any previous in-flight tokenization.
     runIdRef.current += 1;
     const runId = runIdRef.current;
@@ -408,6 +417,9 @@ export function useStreamingDebug(): StreamingDebugState {
   useEffect(() => stopFeeding, [stopFeeding]);
 
   return {
+    uiVisible,
+    hideUi: () => setUiVisible(false),
+
     isStreaming: streaming.isStreaming,
     isFeeding,
     tokenizationError,

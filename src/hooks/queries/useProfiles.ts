@@ -7,8 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import { profiles } from '../../api/client';
 import type { Profile, ProfileMeta, CreateProfileRequest, UpdateProfileRequest } from '../../types/profile';
-import type { MessageStyleConfig, TypographyConfig, LayoutConfig, AvatarConfig, ActionsConfig, BranchConfig, TimestampConfig, AnimationConfig, EditConfig, MarkdownStyleConfig, PageBackgroundConfig, MessageListBackgroundConfig } from '../../types/messageStyle';
-import { defaultTypography, defaultLayout, defaultAvatar, defaultActions, defaultBranch, defaultTimestamp, defaultAnimation, defaultEdit, defaultMarkdown, defaultPageBackground, defaultMessageListBackground, defaultMessageStyleConfig } from '../../types/messageStyle';
+import type { MessageStyleConfig, TypographyConfig, LayoutConfig, HeaderConfig, AvatarConfig, ActionsConfig, BranchConfig, TimestampConfig, AnimationConfig, EditConfig, MarkdownStyleConfig, PageBackgroundConfig, MessageListBackgroundConfig } from '../../types/messageStyle';
+import { defaultTypography, defaultLayout, defaultHeader, defaultAvatar, defaultActions, defaultBranch, defaultTimestamp, defaultAnimation, defaultEdit, defaultMarkdown, defaultPageBackground, defaultMessageListBackground, defaultMessageStyleConfig, applyMessageStyleDefaults } from '../../types/messageStyle';
 
 // ============ Queries ============
 
@@ -198,22 +198,33 @@ export function useActivateProfile() {
  */
 export function useActiveMessageStyle() {
   const { data: profile, isLoading, error } = useActiveProfile();
+  const queryClient = useQueryClient();
   const updateMutation = useUpdateProfile();
   
-  const config = profile?.messageStyle;
+  const config = profile?.messageStyle ? applyMessageStyleDefaults(profile.messageStyle) : undefined;
   
   // Helper to update a section of the config
   const updateConfig = (updates: Partial<MessageStyleConfig>) => {
     if (!profile) return;
-    
-    const newMessageStyle: MessageStyleConfig = {
-      ...profile.messageStyle,
-      ...updates,
-    };
+
+    // Base merge off the latest cached active profile to avoid stale-write clobbering
+    // when multiple controls are changed quickly.
+    const cachedActive = queryClient.getQueryData<Profile>(queryKeys.profiles.active());
+    const base = applyMessageStyleDefaults(cachedActive?.messageStyle ?? profile.messageStyle);
+
+    const next: MessageStyleConfig = { ...base };
+    for (const [k, v] of Object.entries(updates as Record<string, unknown>)) {
+      const baseVal = (base as any)[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && baseVal && typeof baseVal === 'object' && !Array.isArray(baseVal)) {
+        (next as any)[k] = { ...baseVal, ...(v as any) };
+      } else {
+        (next as any)[k] = v as any;
+      }
+    }
     
     return updateMutation.mutateAsync({
       id: profile.id,
-      data: { messageStyle: newMessageStyle },
+      data: { messageStyle: next },
     });
   };
   
@@ -339,9 +350,19 @@ export function useLayoutConfig(): LayoutConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.layout ?? defaultLayout,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).layout,
   });
   return data ?? defaultLayout;
+}
+
+/** Header (App Toolbar) config with defaults */
+export function useHeaderConfig(): HeaderConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).header,
+  });
+  return data ?? defaultHeader;
 }
 
 /** Avatar config with defaults */
@@ -349,7 +370,7 @@ export function useAvatarConfig(): AvatarConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.avatar ?? defaultAvatar,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).avatar,
   });
   return data ?? defaultAvatar;
 }
@@ -359,7 +380,7 @@ export function useActionsConfig(): ActionsConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.actions ?? defaultActions,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).actions,
   });
   return data ?? defaultActions;
 }
@@ -369,7 +390,7 @@ export function useBranchConfig(): BranchConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.branch ?? defaultBranch,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).branch,
   });
   return data ?? defaultBranch;
 }
@@ -379,7 +400,7 @@ export function useTimestampConfig(): TimestampConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.timestamp ?? defaultTimestamp,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).timestamp,
   });
   return data ?? defaultTimestamp;
 }
@@ -389,7 +410,7 @@ export function useAnimationConfig(): AnimationConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.animation ?? defaultAnimation,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).animation,
   });
   return data ?? defaultAnimation;
 }
@@ -399,7 +420,7 @@ export function useEditConfig(): EditConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.edit ?? defaultEdit,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).edit,
   });
   return data ?? defaultEdit;
 }
@@ -409,7 +430,7 @@ export function useMarkdownConfig(): MarkdownStyleConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.markdown ?? defaultMarkdown,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).markdown,
   });
   return data ?? defaultMarkdown;
 }
@@ -419,7 +440,7 @@ export function usePageBackgroundConfig(): PageBackgroundConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.pageBackground ?? defaultPageBackground,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).pageBackground,
   });
   return data ?? defaultPageBackground;
 }
@@ -429,7 +450,7 @@ export function useMessageListBackgroundConfig(): MessageListBackgroundConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle?.messageListBackground ?? defaultMessageListBackground,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).messageListBackground,
   });
   return data ?? defaultMessageListBackground;
 }
@@ -439,7 +460,7 @@ export function useFullConfig(): MessageStyleConfig {
   const { data } = useQuery({
     queryKey: queryKeys.profiles.active(),
     queryFn: () => profiles.getActive(),
-    select: (profile) => profile?.messageStyle ?? defaultMessageStyleConfig,
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle),
   });
   return data ?? defaultMessageStyleConfig;
 }

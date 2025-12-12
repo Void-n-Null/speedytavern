@@ -46,6 +46,45 @@ export interface LayoutConfig {
   containerWidth: number;       // Percentage (20-100), width of message list container
 }
 
+// ============ Header (App Toolbar) ============
+export type HeaderWidthMode = 'match-chat' | 'full';
+export type HeaderSettingsButtonVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
+export type HeaderDisplayMode = 'normal' | 'hover-reveal';
+
+export interface HeaderConfig {
+  displayMode: HeaderDisplayMode;
+  hoverTabText: string;
+  hoverRevealZoneHeightPx: number;
+  hoverTabFontSizePx: number;
+
+  widthMode: HeaderWidthMode;
+  heightPx: number;
+  paddingX: number;
+  backgroundColor: string;       // Supports hex/rgb(a)
+  backgroundOpacity: number;     // 0-100
+  backdropBlurPx: number;        // 0-20
+
+  borderBottom: boolean;
+  borderColor: string;           // Supports hex/rgb(a)
+  borderOpacity: number;         // 0-100
+  borderWidthPx: number;
+
+  roundedBottom: boolean;
+  radiusPx: number;
+
+  showLogo: boolean;
+  logoUrl: string;
+  logoHeightPx: number;
+  logoMaxWidthPx: number;
+
+  showTitle: boolean;
+  titleText: string;
+  titleColor: string;
+  titleSizePx: number;
+
+  settingsButtonVariant: HeaderSettingsButtonVariant;
+}
+
 // ============ Avatar ============
 export type AvatarShape = 'circle' | 'square' | 'rounded';
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -183,6 +222,7 @@ export interface MarkdownStyleConfig {
 export interface MessageStyleConfig {
   typography: TypographyConfig;
   layout: LayoutConfig;
+  header: HeaderConfig;
   avatar: AvatarConfig;
   actions: ActionsConfig;
   branch: BranchConfig;
@@ -203,6 +243,7 @@ export const defaultMessageStyleConfig = defaultTemplate as MessageStyleConfig;
 // Section-level defaults for hooks that need them
 export const defaultTypography = defaultMessageStyleConfig.typography;
 export const defaultLayout = defaultMessageStyleConfig.layout;
+export const defaultHeader = defaultMessageStyleConfig.header;
 export const defaultAvatar = defaultMessageStyleConfig.avatar;
 export const defaultActions = defaultMessageStyleConfig.actions;
 export const defaultBranch = defaultMessageStyleConfig.branch;
@@ -212,6 +253,31 @@ export const defaultEdit = defaultMessageStyleConfig.edit;
 export const defaultMarkdown = defaultMessageStyleConfig.markdown;
 export const defaultPageBackground = defaultMessageStyleConfig.pageBackground;
 export const defaultMessageListBackground = defaultMessageStyleConfig.messageListBackground;
+
+/**
+ * Best-effort defaults merger for backwards compatibility with older stored profiles.
+ * This is a shallow merge per top-level section.
+ */
+export function applyMessageStyleDefaults(partial: Partial<MessageStyleConfig> | null | undefined): MessageStyleConfig {
+  const p = partial ?? {};
+  return {
+    ...defaultMessageStyleConfig,
+    ...p,
+    typography: { ...defaultMessageStyleConfig.typography, ...(p as any).typography },
+    layout: { ...defaultMessageStyleConfig.layout, ...(p as any).layout },
+    header: { ...defaultMessageStyleConfig.header, ...(p as any).header },
+    avatar: { ...defaultMessageStyleConfig.avatar, ...(p as any).avatar },
+    actions: { ...defaultMessageStyleConfig.actions, ...(p as any).actions },
+    branch: { ...defaultMessageStyleConfig.branch, ...(p as any).branch },
+    timestamp: { ...defaultMessageStyleConfig.timestamp, ...(p as any).timestamp },
+    animation: { ...defaultMessageStyleConfig.animation, ...(p as any).animation },
+    edit: { ...defaultMessageStyleConfig.edit, ...(p as any).edit },
+    markdown: { ...defaultMessageStyleConfig.markdown, ...(p as any).markdown },
+    pageBackground: { ...defaultMessageStyleConfig.pageBackground, ...(p as any).pageBackground },
+    messageListBackground: { ...defaultMessageStyleConfig.messageListBackground, ...(p as any).messageListBackground },
+    speakerOverrides: (p as any).speakerOverrides ?? defaultMessageStyleConfig.speakerOverrides,
+  };
+}
 
 // ============ CSS Variable Mappings ============
 export const branchChevronSizeMap: Record<BranchChevronSize, { width: number; height: number; fontSize: number }> = {
