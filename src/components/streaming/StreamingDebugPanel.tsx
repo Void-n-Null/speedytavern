@@ -33,6 +33,19 @@ export function StreamingDebugPanel() {
 
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
+          <Label className="text-[11px] text-zinc-300">Source</Label>
+          <Select value={debug.source} onValueChange={(v) => debug.setSource(v as typeof debug.source)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fake">Fake (local chunks)</SelectItem>
+              <SelectItem value="openrouter">OpenRouter (real model stream)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="col-span-2">
           <Label className="text-[11px] text-zinc-300">Scenario</Label>
           <Select
             value={debug.scenarioId}
@@ -52,66 +65,104 @@ export function StreamingDebugPanel() {
           <div className="mt-1 text-[10px] text-zinc-400">Hotkeys: [1] markdown • [2] long RP • [3] other RP</div>
         </div>
 
-        <div>
-          <Label className="text-[11px] text-zinc-300">Chunking</Label>
-          <Select value={debug.chunkMode} onValueChange={(v) => debug.setChunkMode(v as typeof debug.chunkMode)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="characters">Characters</SelectItem>
-              <SelectItem value="openai_tokens">OpenAI tokens (tiktoken)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label className="text-[11px] text-zinc-300">Delay (ms)</Label>
-          <Input
-            className="h-8 text-xs"
-            type="number"
-            min={0}
-            value={debug.delayMs}
-            onChange={(e) => debug.setDelayMs(Number(e.target.value))}
-          />
-        </div>
-
-        {debug.chunkMode === 'characters' ? (
-          <div>
-            <Label className="text-[11px] text-zinc-300">Chars/chunk</Label>
-            <Input
-              className="h-8 text-xs"
-              type="number"
-              min={1}
-              value={debug.charsPerChunk}
-              onChange={(e) => debug.setCharsPerChunk(Number(e.target.value))}
-            />
-          </div>
-        ) : (
+        {debug.source === 'fake' ? (
           <>
             <div>
-              <Label className="text-[11px] text-zinc-300">Encoding</Label>
-              <Select
-                value={debug.openAIEncoding}
-                onValueChange={(v) => debug.setOpenAIEncoding(v as typeof debug.openAIEncoding)}
-              >
+              <Label className="text-[11px] text-zinc-300">Chunking</Label>
+              <Select value={debug.chunkMode} onValueChange={(v) => debug.setChunkMode(v as typeof debug.chunkMode)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cl100k_base">cl100k_base (gpt-4/3.5)</SelectItem>
-                  <SelectItem value="o200k_base">o200k_base (gpt-4o)</SelectItem>
+                  <SelectItem value="characters">Characters</SelectItem>
+                  <SelectItem value="openai_tokens">OpenAI tokens (tiktoken)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
             <div>
-              <Label className="text-[11px] text-zinc-300">Tokens/chunk</Label>
+              <Label className="text-[11px] text-zinc-300">Delay (ms)</Label>
               <Input
                 className="h-8 text-xs"
                 type="number"
-                min={1}
-                value={debug.tokensPerChunk}
-                onChange={(e) => debug.setTokensPerChunk(Number(e.target.value))}
+                min={0}
+                value={debug.delayMs}
+                onChange={(e) => debug.setDelayMs(Number(e.target.value))}
+              />
+            </div>
+
+            {debug.chunkMode === 'characters' ? (
+              <div>
+                <Label className="text-[11px] text-zinc-300">Chars/chunk</Label>
+                <Input
+                  className="h-8 text-xs"
+                  type="number"
+                  min={1}
+                  value={debug.charsPerChunk}
+                  onChange={(e) => debug.setCharsPerChunk(Number(e.target.value))}
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label className="text-[11px] text-zinc-300">Encoding</Label>
+                  <Select
+                    value={debug.openAIEncoding}
+                    onValueChange={(v) => debug.setOpenAIEncoding(v as typeof debug.openAIEncoding)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cl100k_base">cl100k_base (gpt-4/3.5)</SelectItem>
+                      <SelectItem value="o200k_base">o200k_base (gpt-4o)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[11px] text-zinc-300">Tokens/chunk</Label>
+                  <Input
+                    className="h-8 text-xs"
+                    type="number"
+                    min={1}
+                    value={debug.tokensPerChunk}
+                    onChange={(e) => debug.setTokensPerChunk(Number(e.target.value))}
+                  />
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="col-span-2">
+              <Label className="text-[11px] text-zinc-300">OpenRouter API Key</Label>
+              <Input
+                className="h-8 text-xs"
+                type="password"
+                value={debug.openRouterApiKey}
+                onChange={(e) => debug.setOpenRouterApiKey(e.target.value)}
+                placeholder="sk-or-…"
+              />
+              <div className="mt-1 text-[10px] text-zinc-400">Stored in localStorage (DEV only). Don’t paste this on stream.</div>
+            </div>
+
+            <div className="col-span-2">
+              <Label className="text-[11px] text-zinc-300">Model</Label>
+              <Input
+                className="h-8 text-xs"
+                value={debug.openRouterModelId}
+                onChange={(e) => debug.setOpenRouterModelId(e.target.value)}
+                placeholder="openai/gpt-4o-mini"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <Label className="text-[11px] text-zinc-300">Prompt</Label>
+              <textarea
+                className="min-h-20 w-full resize-y rounded-md border border-zinc-700 bg-zinc-950/60 p-2 text-xs text-zinc-200 outline-none focus:border-zinc-500"
+                value={debug.openRouterPrompt}
+                onChange={(e) => debug.setOpenRouterPrompt(e.target.value)}
+                placeholder="Prompt sent to OpenRouter…"
               />
             </div>
           </>
@@ -153,6 +204,9 @@ export function StreamingDebugPanel() {
             <div className="mt-1 text-[10px] text-amber-400">
               Tokenization failed (fell back to characters): {debug.tokenizationError}
             </div>
+          ) : null}
+          {debug.openRouterError ? (
+            <div className="mt-1 text-[10px] text-red-400">OpenRouter error: {debug.openRouterError}</div>
           ) : null}
         </div>
       </div>

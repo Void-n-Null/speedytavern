@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStreamingStore } from '../store/streamingStore';
 import { useStreaming } from './useStreaming';
+import { OpenRouterStreamSource } from '../streaming/OpenRouterStreamSource';
 
 export type StreamingDebugScenarioId = 'markdown' | 'roleplay_long' | 'roleplay_spicy';
 export type StreamingDebugChunkMode = 'characters' | 'openai_tokens';
 export type OpenAIEncodingName = 'cl100k_base' | 'o200k_base';
+export type StreamingDebugSource = 'fake' | 'openrouter';
 
 export interface StreamingDebugScenario {
   id: StreamingDebugScenarioId;
   label: string;
-  content: string;
+  /** Used for fake-stream mode (we stream this exact string). */
+  fakeContent: string;
+  /** Used for OpenRouter mode (we send this prompt and stream the model output). */
+  defaultPrompt: string;
 }
 
 export const STREAMING_DEBUG_SCENARIOS: readonly StreamingDebugScenario[] = [
   {
     id: 'markdown',
     label: 'Markdown example',
-    content:
+    fakeContent:
       '# Streaming Markdown Torture Test\n\n' +
       'This message is designed to stress **streaming markdown rendering** and edge-cases.\n\n' +
       '## Basics\n\n' +
@@ -54,11 +59,15 @@ export const STREAMING_DEBUG_SCENARIOS: readonly StreamingDebugScenario[] = [
       '| b | 2 |\n\n' +
       '## Ending\n\n' +
       'Streaming should handle unfinished markdown while typing, then settle correctly when complete.\n',
+    defaultPrompt:
+      'Write a single response that stress-tests streaming markdown rendering. ' +
+      'Include: headings, lists with nesting, blockquote, fenced code (TypeScript), a table, and end with a short concluding paragraph. ' +
+      'Make it reasonably long.',
   },
   {
     id: 'roleplay_long',
     label: 'Long AI roleplay response',
-    content:
+    fakeContent:
       '*The tavern door groans open as rain and lanternlight spill across the floorboards.*\n\n' +
       '"You made it," I say, lifting my mug in greeting. "I was starting to think the storm would win."\n\n' +
       'The hearth throws warm shadows up the beams, and the room smells like woodsmoke, citrus peel, and something sweet that shouldn’t be allowed to exist in a town this far from the capital.\n\n' +
@@ -95,11 +104,14 @@ export const STREAMING_DEBUG_SCENARIOS: readonly StreamingDebugScenario[] = [
       '*I swallow, because this is the part that still tastes like fear.*\n\n' +
       '"The name," I admit, "is yours."\n\n' +
       'And just like that, the story begins in earnest.\n',
+    defaultPrompt:
+      'Write a long, vivid roleplay-style response set in a tavern during a storm. ' +
+      'Use italics for actions, include dialogue, and build tension. Keep it PG-13.',
   },
   {
     id: 'roleplay_spicy',
     label: 'Spicy AI roleplay response (PG-13)',
-    content:
+    fakeContent:
       '*The tavern is loud enough to hide secrets, but not loud enough to hide the way you look at me when you think I’m not watching.*\n\n' +
       '"You’re trouble," I murmur, leaning in just close enough that my breath warms your ear.\n\n' +
       '*My gloved fingers hook lightly at your sleeve—barely a touch, a question more than a claim—and I tilt my head like I’m listening to the music. But really, I’m listening to you.*\n\n' +
@@ -110,6 +122,9 @@ export const STREAMING_DEBUG_SCENARIOS: readonly StreamingDebugScenario[] = [
       'I don’t move back. I don’t move closer either. I give you the space to choose, and I make it obvious I’m hoping you don’t.\n\n' +
       '"But if you don’t walk away," I continue, softer now, "I’m going to spend the rest of the night proving exactly how much I like the sound of your laugh."\n\n' +
       '*My thumb traces a small, careful circle over your knuckles—nothing more—then stills, waiting.*\n',
+    defaultPrompt:
+      'Write a flirtatious roleplay-style response (PG-13) set in a tavern. ' +
+      'Use italics for actions, keep consent/choice explicit, and keep it suggestive but not explicit.',
   },
 ] as const;
 
@@ -216,10 +231,21 @@ export interface StreamingDebugState {
   isStreaming: boolean;
   isFeeding: boolean;
   tokenizationError: string | null;
+  openRouterError: string | null;
 
   // Settings
+  source: StreamingDebugSource;
+  setSource: (src: StreamingDebugSource) => void;
+
   scenarioId: StreamingDebugScenarioId;
   setScenarioId: (id: StreamingDebugScenarioId) => void;
+
+  openRouterApiKey: string;
+  setOpenRouterApiKey: (k: string) => void;
+  openRouterModelId: string;
+  setOpenRouterModelId: (m: string) => void;
+  openRouterPrompt: string;
+  setOpenRouterPrompt: (p: string) => void;
 
   chunkMode: StreamingDebugChunkMode;
   setChunkMode: (mode: StreamingDebugChunkMode) => void;
@@ -259,6 +285,15 @@ export function useStreamingDebug(): StreamingDebugState {
   // Hidden by default; becomes visible on first Start (including keyboard 's').
   const [uiVisible, setUiVisible] = useState(false);
 
+  const [source, setSource] = useState<StreamingDebugSource>(() => {
+    try {
+      const raw = localStorage.getItem('tavern.streamingDebug.source');
+      return raw === 'openrouter' ? 'openrouter' : 'fake';
+    } catch {
+      return 'fake';
+    }
+  });
+
   const [scenarioId, setScenarioId] = useState<StreamingDebugScenarioId>('markdown');
   const [chunkMode, setChunkMode] = useState<StreamingDebugChunkMode>('characters');
   const [openAIEncoding, setOpenAIEncoding] = useState<OpenAIEncodingName>('cl100k_base');
@@ -269,19 +304,63 @@ export function useStreamingDebug(): StreamingDebugState {
 
   const [isFeeding, setIsFeeding] = useState(false);
   const [tokenizationError, setTokenizationError] = useState<string | null>(null);
+  const [openRouterError, setOpenRouterError] = useState<string | null>(null);
   const [progressIndex, setProgressIndex] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const [progressUnit, setProgressUnit] = useState<'chars' | 'tokens' | 'chunks'>('chunks');
+
+  const [openRouterApiKey, setOpenRouterApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('tavern.openrouter.apiKey') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const [openRouterModelId, setOpenRouterModelId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('tavern.openrouter.modelId') ?? 'openai/gpt-4o-mini';
+    } catch {
+      return 'openai/gpt-4o-mini';
+    }
+  });
+  const [openRouterPrompt, setOpenRouterPrompt] = useState<string>(() => {
+    // Default gets overwritten once scenario is resolved (effect below)
+    return '';
+  });
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runIdRef = useRef(0);
   const chunksRef = useRef<string[]>([]);
   const cursorRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const scenario = useMemo(() => {
     const found = STREAMING_DEBUG_SCENARIOS.find((s) => s.id === scenarioId);
     return found ?? STREAMING_DEBUG_SCENARIOS[0];
   }, [scenarioId]);
+
+  // Keep prompt in sync with scenario (unless user has edited it).
+  useEffect(() => {
+    setOpenRouterPrompt((prev) => prev || scenario.defaultPrompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarioId]);
+
+  // Persist debug settings to localStorage.
+  useEffect(() => {
+    try {
+      localStorage.setItem('tavern.streamingDebug.source', source);
+    } catch {}
+  }, [source]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('tavern.openrouter.apiKey', openRouterApiKey);
+    } catch {}
+  }, [openRouterApiKey]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('tavern.openrouter.modelId', openRouterModelId);
+    } catch {}
+  }, [openRouterModelId]);
 
   const clearIntervalOnly = useCallback(() => {
     if (intervalRef.current) {
@@ -294,18 +373,20 @@ export function useStreamingDebug(): StreamingDebugState {
     // Abort any pending async chunk build for the current run.
     runIdRef.current += 1;
     clearIntervalOnly();
+    abortRef.current?.abort();
+    abortRef.current = null;
     setIsFeeding(false);
   }, [clearIntervalOnly]);
 
   const buildChunks = useCallback(async (): Promise<{ chunks: string[]; unit: 'chars' | 'tokens' | 'chunks' }> => {
     if (chunkMode === 'characters') {
-      const chunks = chunkByCharacters(scenario.content, charsPerChunk);
+      const chunks = chunkByCharacters(scenario.fakeContent, charsPerChunk);
       return { chunks, unit: 'chunks' };
     }
 
-    const chunks = await chunkByOpenAITokens(scenario.content, openAIEncoding, tokensPerChunk);
+    const chunks = await chunkByOpenAITokens(scenario.fakeContent, openAIEncoding, tokensPerChunk);
     return { chunks, unit: 'chunks' };
-  }, [chunkMode, scenario.content, charsPerChunk, openAIEncoding, tokensPerChunk]);
+  }, [chunkMode, scenario.fakeContent, charsPerChunk, openAIEncoding, tokensPerChunk]);
 
   const start = useCallback(async () => {
     setUiVisible(true);
@@ -314,6 +395,7 @@ export function useStreamingDebug(): StreamingDebugState {
     runIdRef.current += 1;
     const runId = runIdRef.current;
     setTokenizationError(null);
+    setOpenRouterError(null);
 
     // If already streaming, restart cleanly.
     if (useStreamingStore.getState().meta) {
@@ -328,6 +410,52 @@ export function useStreamingDebug(): StreamingDebugState {
     clearIntervalOnly();
     setIsFeeding(true);
 
+    if (source === 'openrouter') {
+      try {
+        const ac = new AbortController();
+        abortRef.current = ac;
+
+        // Progress is basically unbounded; show "deltas".
+        setProgressUnit('chunks');
+        setProgressIndex(0);
+        setProgressTotal(0);
+
+        const src = new OpenRouterStreamSource({
+          apiKey: openRouterApiKey,
+          modelId: openRouterModelId,
+          appName: 'TavernStudio (DEV)',
+          appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+        });
+
+        let i = 0;
+        await src.stream({
+          prompt: openRouterPrompt || scenario.defaultPrompt,
+          signal: ac.signal,
+          onDelta: (delta) => {
+            if (runIdRef.current !== runId) return;
+            streaming.append(delta);
+            i += 1;
+            setProgressIndex(i);
+          },
+        });
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err);
+        // Abort is expected on cancel/restart.
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.warn('[useStreamingDebug] OpenRouter stream failed:', err);
+          setOpenRouterError(msg);
+        }
+      } finally {
+        if (runIdRef.current === runId) {
+          abortRef.current = null;
+          setIsFeeding(false);
+        }
+      }
+
+      return;
+    }
+
     let built: { chunks: string[]; unit: 'chars' | 'tokens' | 'chunks' };
     try {
       built = await buildChunks();
@@ -337,7 +465,7 @@ export function useStreamingDebug(): StreamingDebugState {
       console.warn('[useStreamingDebug] Tokenization failed, falling back to characters:', err);
       setTokenizationError(msg);
       setChunkMode('characters');
-      built = { chunks: chunkByCharacters(scenario.content, charsPerChunk), unit: 'chars' };
+      built = { chunks: chunkByCharacters(scenario.fakeContent, charsPerChunk), unit: 'chars' };
     }
 
     // Aborted/restarted while we were preparing chunks.
@@ -366,7 +494,19 @@ export function useStreamingDebug(): StreamingDebugState {
       cursorRef.current = i + 1;
       setProgressIndex(i + 1);
     }, Math.max(0, delayMs));
-  }, [buildChunks, charsPerChunk, clearIntervalOnly, delayMs, scenario.content, streaming]);
+  }, [
+    buildChunks,
+    charsPerChunk,
+    clearIntervalOnly,
+    delayMs,
+    openRouterApiKey,
+    openRouterModelId,
+    openRouterPrompt,
+    scenario.defaultPrompt,
+    scenario.fakeContent,
+    source,
+    streaming,
+  ]);
 
   const finalize = useCallback(async (): Promise<boolean> => {
     stopFeeding();
@@ -423,9 +563,20 @@ export function useStreamingDebug(): StreamingDebugState {
     isStreaming: streaming.isStreaming,
     isFeeding,
     tokenizationError,
+    openRouterError,
+
+    source,
+    setSource,
 
     scenarioId,
     setScenarioId,
+
+    openRouterApiKey,
+    setOpenRouterApiKey,
+    openRouterModelId,
+    setOpenRouterModelId,
+    openRouterPrompt,
+    setOpenRouterPrompt,
 
     chunkMode,
     setChunkMode,
