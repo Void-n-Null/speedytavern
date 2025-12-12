@@ -1,10 +1,11 @@
-import { memo, useMemo, useEffect, useRef, useState } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useTypographyConfig, useEditConfig } from '../../hooks/queries/useProfiles';
 import { fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
 import { Streamdown } from 'streamdown';
-import { normalizeFencedCodeBlocks } from '../../utils/streamingMarkdown';
-import { subscribeToContent, getStreamingContent } from '../../store/streamingStore';
+import { formatStreamdownInput } from './streamdown/formatStreamdownInput';
+import { useRafCoalescedStreamingRaw } from './streamdown/useRafCoalescedStreamingRaw';
+import { useStreamdownQuoteWrapping } from './streamdown/useStreamdownQuoteWrapping';
 
 interface MessageContentProps {
   nodeId: string;
@@ -35,58 +36,7 @@ export const MessageContent = memo(function MessageContent({
   const editConfig = useEditConfig();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [streamingRaw, setStreamingRaw] = useState(() => (isStreaming ? getStreamingContent() : ''));
-  const pendingRawRef = useRef<string | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  // Subscribe to streaming updates only when this message is the active streaming node.
-  useEffect(() => {
-    if (!isStreaming) {
-      // Cleanup any scheduled work and avoid holding stale buffer.
-      if (rafRef.current != null && typeof cancelAnimationFrame === 'function') {
-        cancelAnimationFrame(rafRef.current);
-      }
-      rafRef.current = null;
-      pendingRawRef.current = null;
-      setStreamingRaw('');
-      return;
-    }
-
-    // Initialize from current buffer (in case we mounted mid-stream).
-    setStreamingRaw(getStreamingContent());
-
-    const schedule =
-      typeof requestAnimationFrame === 'function'
-        ? requestAnimationFrame
-        : (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16) as unknown as number;
-
-    const cancel =
-      typeof cancelAnimationFrame === 'function'
-        ? cancelAnimationFrame
-        : (id: number) => clearTimeout(id);
-
-    const unsubscribe = subscribeToContent((_html, raw) => {
-      pendingRawRef.current = raw;
-      if (rafRef.current == null) {
-        rafRef.current = schedule(() => {
-          rafRef.current = null;
-          const nextRaw = pendingRawRef.current;
-          pendingRawRef.current = null;
-          if (nextRaw == null) return;
-          setStreamingRaw(nextRaw);
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      if (rafRef.current != null) {
-        cancel(rafRef.current);
-        rafRef.current = null;
-      }
-      pendingRawRef.current = null;
-    };
-  }, [isStreaming]);
+  const streamingRaw = useRafCoalescedStreamingRaw(isStreaming);
 
   /**
    * Optimistically close unclosed quotes in raw markdown.
@@ -94,107 +44,9 @@ export const MessageContent = memo(function MessageContent({
    */
   const displayContent = useMemo(() => {
     const raw = isStreaming ? streamingRaw : content;
-    const normalized = normalizeFencedCodeBlocks(raw);
-    const quoteCount = (normalized.match(/"/g) || []).length;
-    return quoteCount % 2 !== 0 ? normalized + '"' : normalized;
+    return formatStreamdownInput(raw);
   }, [content, isStreaming, streamingRaw]);
-
-  function unwrapMdQuotes(element: HTMLElement) {
-    const spans = Array.from(element.querySelectorAll('span.md-quote'));
-    for (const span of spans) {
-      const text = span.textContent ?? '';
-      span.replaceWith(document.createTextNode(text));
-    }
-  }
-
-  function wrapQuotesInElement(element: HTMLElement) {
-    const hasAnyQuote = (s: string) => /["“”]/.test(s);
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    const textNodes: Text[] = [];
-
-    while (walker.nextNode()) {
-      const node = walker.currentNode as Text;
-      const parent = node.parentElement;
-      if (!parent) continue;
-      if (parent.classList.contains('md-quote')) continue;
-      if (parent.closest('pre, code')) continue;
-      textNodes.push(node);
-    }
-
-    let inQuote = false;
-
-    for (const node of textNodes) {
-      const text = node.textContent ?? '';
-      if (!text) continue;
-      if (!hasAnyQuote(text) && !inQuote) continue;
-
-      const frag = document.createDocumentFragment();
-      let localInQuote: boolean = inQuote;
-      let buffer = '';
-
-      for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        const isQuoteChar = ch === '"' || ch === '“' || ch === '”';
-        if (!isQuoteChar) {
-          buffer += ch;
-          continue;
-        }
-
-        if (buffer) {
-          if (localInQuote) {
-            const span = document.createElement('span');
-            span.className = 'md-quote';
-            span.textContent = buffer;
-            frag.appendChild(span);
-          } else {
-            frag.appendChild(document.createTextNode(buffer));
-          }
-          buffer = '';
-        }
-
-        const q = document.createElement('span');
-        q.className = 'md-quote';
-        q.textContent = ch;
-        frag.appendChild(q);
-        localInQuote = !localInQuote;
-      }
-
-      if (buffer) {
-        if (localInQuote) {
-          const span = document.createElement('span');
-          span.className = 'md-quote';
-          span.textContent = buffer;
-          frag.appendChild(span);
-        } else {
-          frag.appendChild(document.createTextNode(buffer));
-        }
-      }
-
-      inQuote = localInQuote;
-      node.parentNode?.replaceChild(frag, node);
-    }
-  }
-
-  // Wrap "quoted text" in spans for styling (DOM pass, like streaming).
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const apply = () => {
-      if (!/["“”]/.test(displayContent)) return;
-      unwrapMdQuotes(el);
-      wrapQuotesInElement(el);
-    };
-
-    apply();
-
-    const observer = new MutationObserver(() => {
-      observer.disconnect();
-      apply();
-      observer.observe(el, { childList: true, subtree: true, characterData: true });
-    });
-    observer.observe(el, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
-  }, [displayContent]);
+  useStreamdownQuoteWrapping(containerRef, displayContent);
 
   // Compute text color based on message type
   const textColor = useMemo(() => {
