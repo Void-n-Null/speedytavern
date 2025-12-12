@@ -27,21 +27,30 @@ export interface TypographyConfig {
 
 // ============ Layout ============
 export type MetaPosition = 'left' | 'above' | 'inline' | 'aside';
-export type Alignment = 'left' | 'right';
-export type MessageStyle = 'bubble' | 'flat' | 'bordered';
+export type MessageStyle = 'flat' | 'bubble';
 export type Padding = 'compact' | 'normal' | 'spacious' | 'extra';
 export type Gap = 'none' | 'tight' | 'normal' | 'spacious';
+export type DividerMode = 'messages' | 'groups';
+export type ViewMode = 'messages' | 'novel';
 
 export interface LayoutConfig {
+  viewMode: ViewMode;
   metaPosition: MetaPosition;
-  userAlignment: Alignment;
-  botAlignment: Alignment;
   messageStyle: MessageStyle;
   bubblePadding: Padding;
+  bubbleBackgroundColor: string;  // Supports hex/rgb(a)
+  bubbleBorderColor: string;      // Supports hex/rgb(a)
+  bubbleBorderWidthPx: number;
+  bubbleRadiusPx: number;
   bubbleMaxWidth: number;       // Percentage (0-100)
   groupConsecutive: boolean;
   groupGap: Gap;
   messageGap: Gap;
+  showMessageDividers: boolean;
+  dividerMode: DividerMode;
+  dividerColor: string;
+  dividerOpacity: number;       // 0-100 (%)
+  dividerWidth: number;         // 0-100 (%)
   avatarGap: number;            // px
   containerWidth: number;       // Percentage (20-100), width of message list container
 }

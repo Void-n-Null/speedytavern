@@ -68,10 +68,7 @@ const gapOptions: SelectOption[] = [
   { value: 'spacious', label: 'Spacious' },
 ];
 
-const alignOptions: SelectOption[] = [
-  { value: 'left', label: 'Left' },
-  { value: 'right', label: 'Right' },
-];
+// Alignment was removed: everything is left-aligned.
 
 const transitionOptions: SelectOption[] = [
   { value: 'none', label: 'None' },
@@ -455,9 +452,20 @@ export const interfaceDesignSections: SectionDefinition[] = [
         controls: [
           {
             type: 'select',
+            key: 'layout.viewMode',
+            label: 'View Mode',
+            description: 'Messages (normal chat) or Novel (no avatar/name/timestamps)',
+            options: [
+              { value: 'messages', label: 'Messages' },
+              { value: 'novel', label: 'Novel' },
+            ],
+          },
+          {
+            type: 'select',
             key: 'layout.metaPosition',
             label: 'Meta Position',
             description: 'Where to show avatar and name',
+            showWhen: { key: 'layout.viewMode', value: 'messages' },
             options: [
               { value: 'left', label: 'Left' },
               { value: 'above', label: 'Above' },
@@ -466,18 +474,10 @@ export const interfaceDesignSections: SectionDefinition[] = [
             ],
           },
           {
-            type: 'select',
-            key: 'layout.userAlignment',
-            label: 'User Alignment',
-            description: 'Horizontal position of user messages',
-            options: alignOptions,
-          },
-          {
-            type: 'select',
-            key: 'layout.botAlignment',
-            label: 'Bot Alignment',
-            description: 'Horizontal position of bot messages',
-            options: alignOptions,
+            type: 'switch',
+            key: 'layout.showMessageDividers',
+            label: 'Message Dividers',
+            description: 'Show subtle dividers between messages (not at top/bottom)',
           },
           {
             type: 'select',
@@ -487,7 +487,6 @@ export const interfaceDesignSections: SectionDefinition[] = [
             options: [
               { value: 'bubble', label: 'Bubble' },
               { value: 'flat', label: 'Flat' },
-              { value: 'bordered', label: 'Bordered' },
             ],
           },
           {
@@ -501,6 +500,45 @@ export const interfaceDesignSections: SectionDefinition[] = [
               { value: 'spacious', label: 'Spacious' },
               { value: 'extra', label: 'Extra' },
             ],
+          },
+        ],
+      },
+      {
+        title: 'Bubble',
+        description: 'Bubble styling for the whole message container',
+        showWhen: { key: 'layout.messageStyle', value: 'bubble' },
+        controls: [
+          {
+            type: 'color',
+            key: 'layout.bubbleBackgroundColor',
+            label: 'Background Color',
+            description: 'Bubble background color (supports rgba)',
+          },
+          {
+            type: 'color',
+            key: 'layout.bubbleBorderColor',
+            label: 'Border Color',
+            description: 'Bubble border color (supports rgba)',
+          },
+          {
+            type: 'slider',
+            key: 'layout.bubbleBorderWidthPx',
+            label: 'Border Width',
+            description: 'Bubble border thickness',
+            min: 0,
+            max: 6,
+            step: 1,
+            suffix: 'px',
+          },
+          {
+            type: 'slider',
+            key: 'layout.bubbleRadiusPx',
+            label: 'Roundness',
+            description: 'Bubble corner radius',
+            min: 0,
+            max: 32,
+            step: 1,
+            suffix: 'px',
           },
         ],
       },
@@ -552,6 +590,49 @@ export const interfaceDesignSections: SectionDefinition[] = [
             label: 'Message Gap',
             description: 'Space between individual messages',
             options: gapOptions,
+          },
+        ],
+      },
+      {
+        title: 'Dividers',
+        description: 'Divider appearance and placement',
+        showWhen: { key: 'layout.showMessageDividers', value: true },
+        controls: [
+          {
+            type: 'select',
+            key: 'layout.dividerMode',
+            label: 'Divider Placement',
+            description: 'Between every message, or only between groups (speaker changes when grouping is on)',
+            options: [
+              { value: 'messages', label: 'Between every message' },
+              { value: 'groups', label: 'Between groups' },
+            ],
+          },
+          {
+            type: 'color',
+            key: 'layout.dividerColor',
+            label: 'Divider Color',
+            description: 'Divider line color (hex)',
+          },
+          {
+            type: 'slider',
+            key: 'layout.dividerOpacity',
+            label: 'Divider Opacity',
+            description: 'Divider line opacity',
+            min: 0,
+            max: 100,
+            step: 5,
+            suffix: '%',
+          },
+          {
+            type: 'slider',
+            key: 'layout.dividerWidth',
+            label: 'Divider Width',
+            description: 'Divider line width as a percentage of the message area',
+            min: 10,
+            max: 100,
+            step: 5,
+            suffix: '%',
           },
         ],
       },

@@ -36,16 +36,6 @@
   position: relative;
 }
 
-.message-item--user {
-  /* User messages could have right-aligned bubbles in future */
-  flex-direction: row;
-}
-
-.message-item--bot {
-  /* Bot messages stay left-aligned */
-  flex-direction: row;
-}
-
 /* Message Meta (avatar, name, timestamp) */
 .message-meta {
   display: flex;
@@ -177,6 +167,14 @@
   margin: 0.5em 0;
   padding-left: 1em;
   color: rgba(255, 255, 255, 0.7);
+}
+
+/* Divider between message rows (rendered conditionally) */
+.message-divider {
+  height: 1px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 

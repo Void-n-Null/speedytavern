@@ -1,8 +1,8 @@
 import { memo, useCallback, useMemo, useRef, useEffect, useState, useLayoutEffect } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnimationConfig, useLayoutConfig, useActiveMessageStyle, useMessageListBackgroundConfig } from '../../hooks/queries/useProfiles';
-import type { GradientDirection } from '../../types/messageStyle';
+import { gapMap, type GradientDirection } from '../../types/messageStyle';
 import { useOptimisticValue } from '../../hooks/useOptimisticValue';
 import { useAddMessage, useChatActivePathNodeIds, useChatNode, useChatSpeaker, useDefaultChatId, useDeleteMessage, useEditMessage, useSwitchBranch } from '../../hooks/queries';
 import { queryKeys } from '../../lib/queryClient';
@@ -66,6 +66,7 @@ export function MessageList() {
   const layoutConfig = useLayoutConfig();
   const storedWidth = layoutConfig.containerWidth;
   const { setLayout } = useActiveMessageStyle();
+  const showMessageDividers = layoutConfig.showMessageDividers;
   
   // Message list background config
   const messageListBg = useMessageListBackgroundConfig();
@@ -243,6 +244,55 @@ export function MessageList() {
     return baseStyle;
   }, [messageListBg]);
 
+  // Divider + spacer styles (used when dividers are enabled)
+  const separatorStyles = useMemo(() => {
+    const messageGapPx = gapMap[layoutConfig.messageGap] ?? '0px';
+    const groupGapPx = gapMap[layoutConfig.groupGap] ?? messageGapPx;
+
+    const opacity = (layoutConfig.dividerOpacity ?? 0) / 100;
+    const bg = applyOpacityToColor(layoutConfig.dividerColor, opacity);
+    const width = `${Math.max(0, Math.min(100, layoutConfig.dividerWidth ?? 100))}%`;
+
+    const baseDivider: CSSProperties = {
+      background: bg,
+      width,
+      marginLeft: 'auto',
+      marginRight: 'auto',
+    };
+
+    const dividerForGap = (gapPx: string): CSSProperties => ({
+      ...baseDivider,
+      marginTop: `calc(${gapPx} / 2)`,
+      marginBottom: `calc(${gapPx} / 2)`,
+    });
+
+    const spacer: CSSProperties = {
+      height: messageGapPx,
+    };
+
+    return {
+      messageGapPx,
+      groupGapPx,
+      dividerMessage: dividerForGap(messageGapPx),
+      dividerGroup: dividerForGap(groupGapPx),
+      spacer,
+    };
+  }, [
+    layoutConfig.messageGap,
+    layoutConfig.groupGap,
+    layoutConfig.dividerColor,
+    layoutConfig.dividerOpacity,
+    layoutConfig.dividerWidth,
+  ]);
+
+  // When dividers are enabled, we want *divider-controlled* spacing (not the fixed CSS gap).
+  const messageListStyle: CSSProperties = useMemo(() => {
+    return {
+      ...messageListBackgroundStyle,
+      ...(showMessageDividers ? { gap: 0 } : null),
+    };
+  }, [messageListBackgroundStyle, showMessageDividers]);
+
   const queryClient = useQueryClient();
 
   // Chat ID is stable (default chat), fetched once.
@@ -251,6 +301,14 @@ export function MessageList() {
 
   // Performance: subscribe only to active path node IDs (not full chat data).
   const activeNodeIds = useChatActivePathNodeIds();
+
+  // Speaker lookup for divider grouping logic (read from cache; no subscription).
+  const speakerIdByNodeId = useMemo(() => {
+    if (!chatId) return new Map<string, string>();
+    const chat = queryClient.getQueryData<ChatFull>(queryKeys.chats.detail(chatId));
+    if (!chat) return new Map<string, string>();
+    return new Map<string, string>(chat.nodes.map((n) => [n.id, n.speaker_id]));
+  }, [chatId, queryClient, activeNodeIds]);
 
   // Mutations (actions). We only use mutateAsync, so this should not force list re-renders.
   const addMessageMutation = useAddMessage(chatId);
@@ -617,7 +675,7 @@ export function MessageList() {
       )}
       
       {/* Message container */}
-      <div className="message-list" ref={containerRef} style={messageListBackgroundStyle}>
+      <div className="message-list" ref={containerRef} style={messageListStyle}>
         {/* Dynamic markdown styles based on config */}
         <MarkdownStyles />
         
@@ -633,6 +691,29 @@ export function MessageList() {
           const globalIndex = visibleNodeIds.startIndex + localIndex;
           const animClass = getAnimationClass(globalIndex);
           const prevNodeId = globalIndex > 0 ? activeNodeIds[globalIndex - 1] : null;
+          const nextNodeId = localIndex < visibleNodeIds.ids.length - 1 ? visibleNodeIds.ids[localIndex + 1] : null;
+
+          // Divider/spacer between rows (never after the last visible row)
+          let separator: ReactNode = null;
+          if (showMessageDividers && nextNodeId) {
+            if (layoutConfig.dividerMode === 'messages') {
+              separator = (
+                <div className="message-divider" style={separatorStyles.dividerMessage} aria-hidden="true" />
+              );
+            } else {
+              const isBoundary = !layoutConfig.groupConsecutive
+                ? true
+                : speakerIdByNodeId.get(nodeId) !== speakerIdByNodeId.get(nextNodeId);
+
+              if (isBoundary) {
+                separator = (
+                  <div className="message-divider" style={separatorStyles.dividerGroup} aria-hidden="true" />
+                );
+              } else if (separatorStyles.messageGapPx !== '0px') {
+                separator = <div style={separatorStyles.spacer} aria-hidden="true" />;
+              }
+            }
+          }
           // Use animation ID in key to ensure animation only runs once per switch
           // When animClass is set, key includes animation ID so element is fresh
           // When animClass is cleared, key reverts to just node.id (stable)
@@ -649,6 +730,7 @@ export function MessageList() {
                 onSwitchBranch={handleSwitchBranch}
                 onCreateBranch={handleCreateBranch}
               />
+              {separator}
             </div>
           );
         })}

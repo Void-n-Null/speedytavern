@@ -94,7 +94,7 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
 
   const headerContent = (
     <div className="flex items-center justify-between gap-3" style={innerStyle}>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3 h-full">
         {header.showLogo ? (
           <img
             src={header.logoUrl || '/logo.png'}

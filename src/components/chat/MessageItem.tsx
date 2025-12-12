@@ -76,10 +76,15 @@ export const MessageItem = memo(function MessageItem({
   const layout = useLayoutConfig();
   const editConfig = useEditConfig();
   const isStreamingThis = useIsStreamingNode(node.client_id);
+  const isNovel = layout.viewMode === 'novel';
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(node.message);
   const [isHovered, setIsHovered] = useState(false);
+
+  // If grouping is disabled, treat every message as first-in-group for meta rendering.
+  // (MessageList computes isFirstInGroup purely from consecutive speakers.)
+  const showMetaForThisMessage = !layout.groupConsecutive || isFirstInGroup;
 
   const handleStartEdit = () => {
     setEditContent(node.message);
@@ -101,17 +106,34 @@ export const MessageItem = memo(function MessageItem({
     onCopy?.(node.id);
   }, [node.id, node.message, onCopy]);
 
-  // Determine alignment based on config
-  const alignment = speaker.is_user ? layout.userAlignment : layout.botAlignment;
-  const alignmentClass = speaker.is_user ? 'message-item--user' : 'message-item--bot';
+  // Alignment removed: everything is left-aligned.
 
   // Container styles
   const containerStyle = useMemo((): CSSProperties => {
     const base: CSSProperties = {
       display: 'flex',
       position: 'relative',
-      marginBottom: gapMap[layout.messageGap],
+      // If dividers are enabled, spacing is handled by the divider itself.
+      marginBottom: layout.showMessageDividers ? '0px' : gapMap[layout.messageGap],
     };
+
+    if (layout.viewMode === 'novel') {
+      // Novel mode: single-column text flow, no avatar/name/timestamp.
+      base.flexDirection = 'column';
+      base.alignItems = 'stretch';
+      base.justifyContent = 'flex-start';
+      return base;
+    }
+
+    // Bubble style: wrap the whole message item in a rounded container.
+    if (layout.messageStyle === 'bubble') {
+      base.backgroundColor = layout.bubbleBackgroundColor;
+      base.borderColor = layout.bubbleBorderColor;
+      base.borderStyle = 'solid';
+      base.borderWidth = `${layout.bubbleBorderWidthPx}px`;
+      base.borderRadius = `${layout.bubbleRadiusPx}px`;
+      base.padding = paddingMap[layout.bubblePadding];
+    }
 
     // Layout direction based on metaPosition
     switch (layout.metaPosition) {
@@ -132,13 +154,19 @@ export const MessageItem = memo(function MessageItem({
         break;
     }
 
-    // Alignment (for user vs bot)
-    if (alignment === 'right') {
-      base.justifyContent = 'flex-end';
-    }
-
     return base;
-  }, [layout.metaPosition, layout.messageGap, alignment]);
+  }, [
+    layout.metaPosition,
+    layout.messageGap,
+    layout.showMessageDividers,
+    layout.viewMode,
+    layout.messageStyle,
+    layout.bubblePadding,
+    layout.bubbleBackgroundColor,
+    layout.bubbleBorderColor,
+    layout.bubbleBorderWidthPx,
+    layout.bubbleRadiusPx,
+  ]);
 
   // Message body styles
   const bodyStyle = useMemo((): CSSProperties => {
@@ -147,17 +175,21 @@ export const MessageItem = memo(function MessageItem({
       maxWidth: `${layout.bubbleMaxWidth}%`,
     };
 
-    // Message style (bubble, flat, bordered)
+    if (layout.viewMode === 'novel') {
+      base.maxWidth = '100%';
+      base.padding = '0px';
+      base.backgroundColor = 'transparent';
+      // Keep it simple: no "bubble" styling in novel mode.
+      return base;
+    }
+
+    // Message style
     switch (layout.messageStyle) {
       case 'bubble':
-        base.backgroundColor = speaker.is_user ? '#2d5a7b' : '#3d3d3d';
-        base.borderRadius = '12px';
-        base.padding = paddingMap[layout.bubblePadding];
-        break;
-      case 'bordered':
-        base.border = '1px solid #444';
-        base.borderRadius = '8px';
-        base.padding = paddingMap[layout.bubblePadding];
+        // Bubble now applies to the outer message-item wrapper.
+        // Keep body transparent and unpadded.
+        base.backgroundColor = 'transparent';
+        base.padding = '0px';
         break;
       case 'flat':
         base.padding = paddingMap[layout.bubblePadding];
@@ -165,7 +197,7 @@ export const MessageItem = memo(function MessageItem({
     }
 
     return base;
-  }, [layout.messageStyle, layout.bubbleMaxWidth, layout.bubblePadding, speaker.is_user]);
+  }, [layout.viewMode, layout.messageStyle, layout.bubbleMaxWidth, layout.bubblePadding]);
 
   // Hover handlers for visibility-based elements
   const handleMouseEnter = () => setIsHovered(true);
@@ -188,7 +220,7 @@ export const MessageItem = memo(function MessageItem({
 
   return (
     <div 
-      className={`message-item ${alignmentClass}`}
+      className="message-item"
       style={containerStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -196,7 +228,7 @@ export const MessageItem = memo(function MessageItem({
       data-node-id={node.id}
     >
       {/* Meta section - avatar, name, timestamp (left/above layouts) */}
-      {(layout.metaPosition === 'left' || layout.metaPosition === 'above') && (
+      {!isNovel && (layout.metaPosition === 'left' || layout.metaPosition === 'above') && (
         <MessageMeta
           speaker={speaker}
           timestamp={node.created_at}
@@ -205,7 +237,7 @@ export const MessageItem = memo(function MessageItem({
       )}
       
       {/* Aside layout: avatar in its own section on the left */}
-      {layout.metaPosition === 'aside' && (
+      {!isNovel && layout.metaPosition === 'aside' && (
         <MessageMeta
           speaker={speaker}
           timestamp={node.created_at}
@@ -216,7 +248,7 @@ export const MessageItem = memo(function MessageItem({
       
       <div className="message-body" style={bodyStyle}>
         {/* Inline meta (name before text) */}
-        {layout.metaPosition === 'inline' && isFirstInGroup && (
+        {!isNovel && layout.metaPosition === 'inline' && showMetaForThisMessage && (
           <MessageMeta
             speaker={speaker}
             timestamp={node.created_at}
@@ -225,7 +257,7 @@ export const MessageItem = memo(function MessageItem({
         )}
         
         {/* Aside layout: name/timestamp above text, avatar separate */}
-        {layout.metaPosition === 'aside' && isFirstInGroup && (
+        {!isNovel && layout.metaPosition === 'aside' && showMetaForThisMessage && (
           <MessageMeta
             speaker={speaker}
             timestamp={node.created_at}
