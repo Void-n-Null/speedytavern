@@ -73,49 +73,6 @@ function wrapQuotesInSpans(html: string): string {
 }
 
 /**
- * Creates a streaming markdown parser instance.
- * Used by the streaming store to track raw content.
- */
-export function createStreamingParser() {
-  let buffer = '';
-
-  return {
-    /** Append content */
-    append(chunk: string): void {
-      buffer += chunk;
-    },
-
-    /** Get current full HTML (parsed with marked) */
-    getFullHtml(): string {
-      try {
-        return marked.parse(buffer) as string;
-      } catch {
-        return buffer;
-      }
-    },
-
-    /** Get raw content (for persistence and Streamdown) */
-    getRawContent(): string {
-      return buffer;
-    },
-
-    /** Reset parser state */
-    reset(): void {
-      buffer = '';
-    },
-
-    /** Finalize - just returns empty, content is persisted via getRawContent */
-    finalize(): string {
-      const content = buffer;
-      buffer = '';
-      return content;
-    },
-  };
-}
-
-export type StreamingParser = ReturnType<typeof createStreamingParser>;
-
-/**
  * Parse complete markdown string to HTML.
  * Use this for static content (non-streaming).
  */

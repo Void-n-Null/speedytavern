@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { createStreamingParser, type StreamingParser } from '../utils/streamingMarkdown';
 
 /**
  * Streaming message metadata.
@@ -28,11 +27,8 @@ export interface StreamingMessage extends StreamingMeta {
 /** Raw content buffer - updated on every append, no re-renders */
 let contentBuffer = '';
 
-/** Streaming markdown parser instance */
-let parser: StreamingParser | null = null;
-
 /** Listeners for content updates (DOM refs subscribe here) */
-type ContentListener = (html: string, raw: string) => void;
+type ContentListener = (raw: string) => void;
 const contentListeners = new Set<ContentListener>();
 
 // ============ Flush scheduling (frame-throttled) ============
@@ -50,18 +46,12 @@ export function subscribeToContent(listener: ContentListener): () => void {
 
 /** Notify all listeners of content update */
 function notifyContentListeners() {
-  const html = parser?.getFullHtml() ?? contentBuffer;
-  contentListeners.forEach(listener => listener(html, contentBuffer));
+  contentListeners.forEach((listener) => listener(contentBuffer));
 }
 
 /** Get current raw content (for persistence) */
 export function getStreamingContent(): string {
   return contentBuffer;
-}
-
-/** Get current HTML content */
-export function getStreamingHtml(): string {
-  return parser?.getFullHtml() ?? contentBuffer;
 }
 
 // ============ Zustand store (minimal state, only triggers renders on start/stop) ============
@@ -95,9 +85,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
   contentVersion: 0,
 
   start: (parentId, speakerId, nodeClientId) => {
-    // Reset content buffer and parser
+    // Reset content buffer
     contentBuffer = '';
-    parser = createStreamingParser();
     
     // Set metadata (triggers re-render for components watching meta)
     set({
@@ -116,7 +105,6 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     
     // Update buffer (no re-render)
     contentBuffer += chunk;
-    parser?.append(chunk);
 
     // Coalesce parse + notify to once per frame.
     if (flushScheduled) return;
@@ -139,10 +127,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
   setContent: (content) => {
     if (!get().meta) return;
     
-    // Reset buffer and parser with new content
+    // Reset buffer with new content
     contentBuffer = content;
-    parser?.reset();
-    parser?.append(content);
 
     // Immediate flush for full content replacement.
     flushScheduled = false;
@@ -154,9 +140,6 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     const { meta } = get();
     if (!meta) return null;
     
-    // Finalize parser
-    parser?.finalize();
-    
     // Capture full message
     const message: StreamingMessage = {
       ...meta,
@@ -165,7 +148,6 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     
     // Clear state
     contentBuffer = '';
-    parser = null;
     set({ meta: null, contentVersion: 0 });
     
     return message;
@@ -173,7 +155,6 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
 
   cancel: () => {
     contentBuffer = '';
-    parser = null;
     set({ meta: null, contentVersion: 0 });
   },
 }));

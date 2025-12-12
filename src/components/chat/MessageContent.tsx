@@ -2,10 +2,10 @@ import { memo, useMemo, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { useTypographyConfig, useEditConfig } from '../../hooks/queries/useProfiles';
 import { fontSizeMap, lineHeightMap, fontFamilyMap, fontWeightMap } from '../../types/messageStyle';
-import { Streamdown } from 'streamdown';
+import { Streamdown, defaultRehypePlugins } from 'streamdown';
 import { formatStreamdownInput } from './streamdown/formatStreamdownInput';
 import { useRafCoalescedStreamingRaw } from './streamdown/useRafCoalescedStreamingRaw';
-import { useStreamdownQuoteWrapping } from './streamdown/useStreamdownQuoteWrapping';
+import { rehypeQuoteWrap } from './streamdown/rehypeQuoteWrap';
 
 interface MessageContentProps {
   nodeId: string;
@@ -46,7 +46,13 @@ export const MessageContent = memo(function MessageContent({
     const raw = isStreaming ? streamingRaw : content;
     return formatStreamdownInput(raw);
   }, [content, isStreaming, streamingRaw]);
-  useStreamdownQuoteWrapping(containerRef, displayContent);
+  void containerRef;
+
+  const rehypePlugins = useMemo(() => {
+    // Streamdown exports defaults as a record, not an array.
+    // We append our custom quote-wrapping plugin at the end.
+    return [...(Object.values(defaultRehypePlugins) as unknown as any[]), rehypeQuoteWrap];
+  }, []);
 
   // Compute text color based on message type
   const textColor = useMemo(() => {
@@ -104,14 +110,14 @@ export const MessageContent = memo(function MessageContent({
   if (isStreaming) {
     return (
       <div ref={containerRef} className="message-content streaming" style={contentStyle}>
-        <Streamdown>{displayContent}</Streamdown>
+        <Streamdown rehypePlugins={rehypePlugins}>{displayContent}</Streamdown>
       </div>
     );
   }
 
   return (
     <div ref={containerRef} className="message-content" style={contentStyle}>
-      <Streamdown>{displayContent}</Streamdown>
+      <Streamdown rehypePlugins={rehypePlugins}>{displayContent}</Streamdown>
     </div>
   );
 });

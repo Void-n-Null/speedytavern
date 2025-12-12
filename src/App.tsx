@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Settings } from 'lucide-react';
 import { MessageList } from './components/chat';
+import { AppToolbar } from './components/AppToolbar';
 import { DesignConfigModal } from './components/design-config/DesignConfigModal';
 import { useServerChatStatus } from './hooks/queries';
 import { STREAMING_DEBUG_SCENARIOS, useStreamingDebug } from './hooks/useStreamingDebug';
@@ -57,22 +57,15 @@ export function App() {
   }
 
   return (
-    <div className="app flex h-screen overflow-hidden" style={bgStyle}>
-      <div className="flex-1 h-full overflow-hidden">
+    <div className="app flex h-screen flex-col overflow-hidden" style={bgStyle}>
+      <AppToolbar onOpenSettings={() => setShowSettings(true)} />
+
+      <main className="flex-1 min-h-0 overflow-hidden">
         <MessageList />
-      </div>
-      
-      <Button
-        onClick={() => setShowSettings(true)}
-        variant="secondary"
-        size="icon"
-        className="fixed top-4 right-4 z-50 shadow-lg"
-      >
-        <Settings className="h-5 w-5" />
-      </Button>
-      
+      </main>
+
       <DesignConfigModal open={showSettings} onOpenChange={setShowSettings} />
-      
+
       {import.meta.env.DEV ? <StreamingDebugPanel /> : null}
       <ToastContainer />
     </div>
@@ -116,7 +109,7 @@ function StreamingDebugPanel() {
               ))}
             </SelectContent>
           </Select>
-          <div className="mt-1 text-[10px] text-zinc-400">Hotkeys: [1] markdown • [2] long RP • [3] spicy RP</div>
+          <div className="mt-1 text-[10px] text-zinc-400">Hotkeys: [1] markdown • [2] long RP • [3] other RP</div>
         </div>
 
         <div>

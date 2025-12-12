@@ -86,11 +86,6 @@ export function createStreamingSessionMachine(deps: StreamingSessionDeps): Strea
   let state: State = { status: 'idle' };
   let sessionCounter = 0;
 
-  // Matches the previous behavior of `cancelledRef`:
-  // - set to the sessionId that was cancelled
-  // - cleared on next `start()`
-  let cancelledSessionId: number | null = null;
-
   const isSameSession = (sid: number): boolean => state.status !== 'idle' && state.sessionId === sid;
 
   const cancelStoreIfActive = (nodeClientId: string) => {
@@ -101,6 +96,11 @@ export function createStreamingSessionMachine(deps: StreamingSessionDeps): Strea
   };
 
   const start: StreamingSessionMachine['start'] = (options = {}): boolean => {
+    // If a session is already active, cancel it first to avoid leaking placeholders.
+    if (state.status !== 'idle') {
+      cancel();
+    }
+
     const speakers = deps.getSpeakers();
 
     // Determine parent
@@ -116,9 +116,6 @@ export function createStreamingSessionMachine(deps: StreamingSessionDeps): Strea
       console.warn('[streaming/sessionMachine] Cannot start: no speaker found');
       return false;
     }
-
-    // New session supersedes any pending cancel cleanup (matches prior behavior).
-    cancelledSessionId = null;
 
     // Client-stable id used to match `ChatNode.client_id` across optimistic updates.
     const nodeClientId = crypto.randomUUID();
@@ -241,8 +238,6 @@ export function createStreamingSessionMachine(deps: StreamingSessionDeps): Strea
     const sid = s.sessionId;
     state = { ...s, status: 'cancelling' };
 
-    cancelledSessionId = sid;
-
     // Stop streaming immediately (UI) for this session’s node.
     cancelStoreIfActive(s.nodeClientId);
 
@@ -253,10 +248,12 @@ export function createStreamingSessionMachine(deps: StreamingSessionDeps): Strea
     }
 
     // If the server creation is still in flight, clean it up once it lands
-    // ONLY if we haven't started a new session since (matches prior behavior).
+    // even if a new session starts later (otherwise we orphan empty rows).
     void s.createPromise
       .then((r) => {
-        if (cancelledSessionId !== sid) return;
+        // Only perform server cleanup if this cancelled session is still the one we cancelled.
+        // We intentionally do NOT use any "global cancelled id" gate here; each session carries
+        // its own createPromise/id, so deleting it cannot affect newer sessions.
         return deps.deleteMessage(r.id).then(() => {});
       })
       .catch(() => {});
