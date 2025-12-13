@@ -233,13 +233,16 @@ characterCardRoutes.get('/:id/export/json', (c) => {
 // ============ Export PNG ============
 characterCardRoutes.get('/:id/export/png', (c) => {
   const id = c.req.param('id');
-  const row = prepare<CharacterCardRow>('SELECT id, name, spec, raw_json, png_blob FROM character_cards WHERE id = ?').get(id) as
+  const row = prepare<CharacterCardRow>('SELECT id, name, source, spec, raw_json, png_blob FROM character_cards WHERE id = ?').get(id) as
     | CharacterCardRow
     | null;
   if (!row) return c.json({ error: 'Character card not found' }, 404);
   if (!row.png_blob || row.png_blob.byteLength === 0) return c.json({ error: 'No PNG stored for this card' }, 404);
 
-  const keyword: 'ccv3' | 'chara' = row.spec === 'chara_card_v3' ? 'ccv3' : 'chara';
+  // Primary signal: the import/source type tracks how the PNG metadata was originally stored.
+  // Fallback: infer from spec when source doesn't indicate a PNG keyword (e.g. JSON imports / legacy rows).
+  const keyword: 'ccv3' | 'chara' =
+    row.source === 'png_ccv3' ? 'ccv3' : row.source === 'png_chara' ? 'chara' : row.spec === 'chara_card_v3' ? 'ccv3' : 'chara';
   const out = writeCardTextToPng(Buffer.from(row.png_blob), row.raw_json, keyword);
 
   const safeName = (row.name || 'character').replace(/[^a-z0-9 _.-]/gi, '_');

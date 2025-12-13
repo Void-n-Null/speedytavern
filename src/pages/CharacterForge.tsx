@@ -106,14 +106,17 @@ export function CharacterForge() {
               cardId={null}
               onClose={() => setMode('view')}
               onSaved={(newId) => {
-                navigate(`/forge/${newId}`);
+                // After first save, stay in the editor (edit route) so users can keep saving.
+                enterEditMode(newId);
+                navigate(`/forge/${newId}/edit`);
               }}
             />
           ) : mode === 'edit' && selectedCardId ? (
             <CharacterEditor
               cardId={selectedCardId}
               onClose={handleExitEdit}
-              onSaved={() => handleExitEdit()}
+              // Saving should not exit editing; keep the user in-place.
+              onSaved={() => {}}
             />
           ) : selectedCardId ? (
             <CharacterDetailPanel

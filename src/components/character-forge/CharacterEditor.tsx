@@ -4,7 +4,7 @@
  * Supports both creating new cards and editing existing ones.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Save, User, FileText, MessageSquare, Wand2, Settings2, Tag, StickyNote } from 'lucide-react';
 import { 
   useCharacterCard, 
@@ -75,6 +75,7 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
   const isCreating = !cardId;
   const [activeSection, setActiveSection] = useState<EditorSection>('core');
   const [isDirty, setIsDirty] = useState(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Form state - matches V2 data structure
   const [formData, setFormData] = useState<TavernCardV2>(createEmptyCard());
@@ -151,31 +152,68 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
     cardId && existingCard?.has_png ? getAvatarUrlVersioned(cardId, existingCard?.png_sha256) : null;
   
   // Save handler
-  const handleSave = async () => {
+  const handleSave = useCallback(async (opts?: { silent?: boolean; reason?: 'manual' | 'autosave' | 'hotkey' }) => {
+    const silent = Boolean(opts?.silent);
     if (hasErrors) {
-      showToast({ message: 'Please fix errors before saving', type: 'error' });
+      if (!silent) showToast({ message: 'Please fix errors before saving', type: 'error' });
       return;
     }
     
     try {
       if (isCreating) {
         const result = await createCard.mutateAsync(formData);
-        showToast({ message: 'Character created', type: 'success' });
+        if (!silent) showToast({ message: 'Character created', type: 'success' });
         setIsDirty(false);
         onSaved(result.id);
       } else {
         await updateCard.mutateAsync({ id: cardId, card: formData });
-        showToast({ message: 'Character saved', type: 'success' });
+        if (!silent) showToast({ message: 'Character saved', type: 'success' });
         setIsDirty(false);
         onSaved(cardId);
       }
     } catch (err) {
-      showToast({ 
-        message: err instanceof Error ? err.message : 'Save failed', 
-        type: 'error' 
+      // Autosave should not spam; only show toast on failure.
+      showToast({
+        message: err instanceof Error ? err.message : 'Save failed',
+        type: 'error',
       });
     }
-  };
+  }, [cardId, createCard, formData, hasErrors, isCreating, onSaved, updateCard]);
+
+  // Ctrl/Cmd+S save hotkey (override browser default)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isSave = (e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey);
+      if (!isSave) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Don't enqueue multiple saves.
+      if (createCard.isPending || updateCard.isPending) return;
+      void handleSave({ silent: false, reason: 'hotkey' });
+    };
+
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
+  }, [createCard.isPending, handleSave, updateCard.isPending]);
+
+  // Autosave every 60s when dirty (no success toast)
+  useEffect(() => {
+    if (autosaveTimerRef.current) clearInterval(autosaveTimerRef.current);
+
+    autosaveTimerRef.current = setInterval(() => {
+      if (!isDirty) return;
+      if (hasErrors) return;
+      if (createCard.isPending || updateCard.isPending) return;
+
+      void handleSave({ silent: true, reason: 'autosave' });
+    }, 60_000);
+
+    return () => {
+      if (autosaveTimerRef.current) clearInterval(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    };
+  }, [createCard.isPending, handleSave, hasErrors, isDirty, updateCard.isPending]);
   
   // Avatar upload
   const handleAvatarChange = async (file: File) => {
@@ -234,7 +272,7 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
             <span className="text-xs text-amber-400">Unsaved changes</span>
           )}
           <Button
-            onClick={handleSave}
+            onClick={() => handleSave({ silent: false, reason: 'manual' })}
             disabled={hasErrors || createCard.isPending || updateCard.isPending}
             className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
           >
