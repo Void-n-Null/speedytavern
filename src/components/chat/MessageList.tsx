@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useEffect, useState, useLayoutEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAnimationConfig, useLayoutConfig, useActiveMessageStyle, useMessageListBackgroundConfig } from '../../hooks/queries/useProfiles';
 import { gapMap, type GradientDirection } from '../../types/messageStyle';
 import { useOptimisticValue } from '../../hooks/useOptimisticValue';
@@ -10,10 +11,6 @@ import type { ChatFull } from '../../api/client';
 import { MessageItem } from './MessageItem';
 import { MarkdownStyles } from './MarkdownStyles';
 import { pickRandomMessage } from '../../utils/generateDemoData';
-
-// Lazy rendering config - render last N messages, load more on scroll
-const INITIAL_RENDER_LIMIT = 100;
-const LOAD_MORE_BATCH = 50;
 
 /**
  * Message list container with optimizations.
@@ -31,7 +28,6 @@ const LOAD_MORE_BATCH = 50;
 export function MessageList() {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const bottomSentinelRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   
   // Scroll anchoring state for branch switching
@@ -79,10 +75,6 @@ export function MessageList() {
     id: number;  // Unique ID to prevent animation restart on re-renders
   } | null>(null);
   const animationIdCounter = useRef(0);
-  
-  // Lazy rendering - only render last N messages, load more on scroll up
-  const [renderLimit, setRenderLimit] = useState(INITIAL_RENDER_LIMIT);
-  const lazyRenderPathRef = useRef<{ length: number; firstId: string | null }>({ length: 0, firstId: null });
   
   // Get animation settings
   const animationConfig = useAnimationConfig();
@@ -427,12 +419,6 @@ export function MessageList() {
     };
   }, [messageListBackgroundStyle]);
 
-  const messageListContentStyle: CSSProperties = useMemo(() => {
-    // `.message-list-content` owns the fixed CSS gap; when dividers are enabled, we zero it out
-    // so spacing comes from the divider renderer instead.
-    return showMessageDividers ? { gap: 0 } : {};
-  }, [showMessageDividers]);
-
   const queryClient = useQueryClient();
 
   // Chat ID is stable (default chat), fetched once.
@@ -441,6 +427,24 @@ export function MessageList() {
 
   // Performance: subscribe only to active path node IDs (not full chat data).
   const activeNodeIds = useChatActivePathNodeIds();
+
+  // Virtualize the message list to avoid rendering thousands of DOM nodes.
+  // We keep the UX semantics (follow/disengage, branch anchoring) identical by
+  // continuing to treat `containerRef` as the single scroll source of truth.
+  const rowVirtualizer = useVirtualizer({
+    count: activeNodeIds.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 140,
+    overscan: 12,
+    // Preserve stable keys across inserts/branch switches.
+    getItemKey: (index) => activeNodeIds[index] ?? index,
+    // Match `.message-list-content` vertical padding from CSS (16px top + bottom).
+    paddingStart: 16,
+    paddingEnd: 16,
+    // Match the old flex `gap: 4px` when dividers aren't controlling spacing.
+    gap: showMessageDividers ? 0 : 4,
+  });
+  const virtualTotalSize = rowVirtualizer.getTotalSize();
 
   // Speaker lookup for divider grouping logic (read from cache; no subscription).
   const speakerIdByNodeId = useMemo(() => {
@@ -470,40 +474,6 @@ export function MessageList() {
     if (!chatId) return undefined;
     return queryClient.getQueryData<ChatFull>(queryKeys.chats.detail(chatId));
   }, [chatId, queryClient]);
-
-  // Reset render limit when branch changes (path changes significantly)
-  useEffect(() => {
-    const pathLength = activeNodeIds.length;
-    const firstId = activeNodeIds[0] ?? null;
-    const prev = lazyRenderPathRef.current;
-    
-    // Detect branch switch: first node changed (different branch) or big length change
-    const branchChanged = firstId !== prev.firstId;
-    const significantLengthChange = Math.abs(pathLength - prev.length) > 1;
-    
-    if (branchChanged || significantLengthChange) {
-      setRenderLimit(INITIAL_RENDER_LIMIT);
-    }
-    lazyRenderPathRef.current = { length: pathLength, firstId };
-  }, [activeNodeIds]);
-
-  // Compute which messages to actually render (last N node IDs of the active path)
-  const visibleNodeIds = useMemo(() => {
-    if (activeNodeIds.length <= renderLimit) {
-      return { ids: activeNodeIds, hiddenCount: 0, startIndex: 0 };
-    }
-    const startIndex = activeNodeIds.length - renderLimit;
-    return {
-      ids: activeNodeIds.slice(startIndex),
-      hiddenCount: startIndex,
-      startIndex,
-    };
-  }, [activeNodeIds, renderLimit]);
-
-  // Load more messages when clicking the "load more" button
-  const handleLoadMore = useCallback(() => {
-    setRenderLimit(prev => prev + LOAD_MORE_BATCH);
-  }, []);
 
   // Stable callbacks - use refs to avoid re-creating on every render
   const handleEdit = useCallback((nodeId: string, content: string) => {
@@ -644,27 +614,29 @@ export function MessageList() {
     const container = containerRef.current;
     
     if (!anchor || !container) return;
-    
-    // Clear anchor to prevent re-triggering (but leave skipAutoScrollRef for useEffect to handle)
-    pendingScrollAnchor.current = null;
-    
-    // Find the NEW sibling in the path (the child of parentId that's now active)
-    // Look through the rendered path to find which node has parentId as its parent
+
+    // Find the NEW sibling in the path (the child of parentId that's now active).
     const parentIndex = activeNodeIds.findIndex(id => id === anchor.parentId);
-    if (parentIndex === -1 || parentIndex >= activeNodeIds.length - 1) return;
-    
-    // The new sibling is the node right after the parent in the path
-    const newSiblingId = activeNodeIds[parentIndex + 1];
-    const anchorElement = container.querySelector(`[data-node-id="${newSiblingId}"]`) as HTMLElement | null;
-    if (!anchorElement) return;
-    
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = anchorElement.getBoundingClientRect();
-    const currentOffsetFromTop = elementRect.top - containerRect.top;
-    
-    // Calculate scroll adjustment to restore original position
-    const scrollDelta = currentOffsetFromTop - anchor.offsetFromTop;
-    const targetScrollTop = container.scrollTop + scrollDelta;
+    if (parentIndex === -1 || parentIndex >= activeNodeIds.length - 1) {
+      pendingScrollAnchor.current = null;
+      return;
+    }
+
+    const newSiblingIndex = parentIndex + 1;
+
+    // In virtual mode, avoid DOM querying. Use the virtualizer's measurement cache
+    // to compute the scrollTop that places the new sibling at the prior offset.
+    const measurement = rowVirtualizer.measurementsCache[newSiblingIndex];
+    if (!measurement) {
+      // Measurements may not be ready on the first layout pass (esp. during rapid switches).
+      // Keep the anchor and retry on the next layout pass when total size/measurements settle.
+      return;
+    }
+
+    // Clear anchor to prevent re-triggering (but leave skipAutoScrollRef for useEffect to handle).
+    pendingScrollAnchor.current = null;
+
+    const targetScrollTop = measurement.start - anchor.offsetFromTop;
     
     // Check if we can actually scroll to this position
     const maxScrollTop = container.scrollHeight - container.clientHeight;
@@ -716,7 +688,7 @@ export function MessageList() {
         setTimeout(cleanup, 350);
       }
     }
-  }, [activeNodeIds]); // Trigger when path changes
+  }, [activeNodeIds, rowVirtualizer, virtualTotalSize]); // Trigger when path changes or measurements settle
 
   // Clear the "skip" flag after branch-switch scroll restoration has run.
   // We keep it alive through the paint so ResizeObserver-based follow won't fight it.
@@ -798,25 +770,32 @@ export function MessageList() {
       
       {/* Message container */}
       <div className="message-list" ref={containerRef} style={messageListContainerStyle}>
-        <div className="message-list-content" ref={contentRef} style={messageListContentStyle}>
+        <div
+          className="message-list-content"
+          ref={contentRef}
+          style={{
+            // Override the flex-column CSS for virtual positioning.
+            display: 'block',
+            position: 'relative',
+            height: virtualTotalSize,
+            minHeight: '100%',
+            // Keep horizontal padding from CSS; vertical padding is handled via virtualizer paddingStart/End.
+            padding: '0 6px',
+          }}
+        >
           {/* Dynamic markdown styles based on config */}
           <MarkdownStyles />
-          
-          {/* Load more indicator - shown when there are hidden messages */}
-          {visibleNodeIds.hiddenCount > 0 && (
-            <div className="message-list-load-more" onClick={handleLoadMore}>
-              ↑ Load {Math.min(LOAD_MORE_BATCH, visibleNodeIds.hiddenCount)} more messages ({visibleNodeIds.hiddenCount} hidden)
-            </div>
-          )}
-          
-          {visibleNodeIds.ids.map((nodeId, localIndex) => {
-            // Convert local index to global index for animation calculations
-            const globalIndex = visibleNodeIds.startIndex + localIndex;
-            const animClass = getAnimationClass(globalIndex);
-            const prevNodeId = globalIndex > 0 ? activeNodeIds[globalIndex - 1] : null;
-            const nextNodeId = localIndex < visibleNodeIds.ids.length - 1 ? visibleNodeIds.ids[localIndex + 1] : null;
 
-            // Divider/spacer between rows (never after the last visible row)
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const nodeIndex = virtualRow.index;
+            const nodeId = activeNodeIds[nodeIndex];
+            if (!nodeId) return null;
+
+            const animClass = getAnimationClass(nodeIndex);
+            const prevNodeId = nodeIndex > 0 ? activeNodeIds[nodeIndex - 1] : null;
+            const nextNodeId = nodeIndex < activeNodeIds.length - 1 ? activeNodeIds[nodeIndex + 1] : null;
+
+            // Divider/spacer between rows (never after the last row)
             let separator: ReactNode = null;
             if (showMessageDividers && nextNodeId) {
               if (layoutConfig.dividerMode === 'messages') {
@@ -837,29 +816,37 @@ export function MessageList() {
                 }
               }
             }
-            // Use animation ID in key to ensure animation only runs once per switch
-            // When animClass is set, key includes animation ID so element is fresh
-            // When animClass is cleared, key reverts to just node.id (stable)
-            const key = animClass && branchAnimation ? `${nodeId}-anim-${branchAnimation.id}` : nodeId;
+
             return (
-              <div key={key} className={animClass || undefined}>
-                <MessageItemRow
-                  nodeId={nodeId}
-                  prevNodeId={prevNodeId}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onRegenerate={handleRegenerate}
-                  onBranch={handleBranch}
-                  onSwitchBranch={handleSwitchBranch}
-                  onCreateBranch={handleCreateBranch}
-                />
-                {separator}
+              <div
+                key={virtualRow.key}
+                ref={rowVirtualizer.measureElement}
+                data-index={nodeIndex}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {/* Nested wrapper so branch animation transforms don't clobber the Y-translate used for virtualization. */}
+                <div className={animClass || undefined}>
+                  <MessageItemRow
+                    nodeId={nodeId}
+                    prevNodeId={prevNodeId}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onRegenerate={handleRegenerate}
+                    onBranch={handleBranch}
+                    onSwitchBranch={handleSwitchBranch}
+                    onCreateBranch={handleCreateBranch}
+                  />
+                  {separator}
+                </div>
               </div>
             );
           })}
-
-          {/* Used for bottom detection/observation (no visual) */}
-          <div className="message-list-bottom-sentinel" ref={bottomSentinelRef} aria-hidden="true" />
         </div>
       </div>
     </div>
