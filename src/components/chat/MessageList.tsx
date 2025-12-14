@@ -63,9 +63,11 @@ export function MessageList() {
   // Drag state
   const dragRef = useRef<{ edge: 'left' | 'right'; startX: number; startWidthPercent: number } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  
+  const [isDragging, setIsDragging] = useState(false);
+  const dragEdgeRef = useRef<'left' | 'right' | null>(null);
+
   // Optimistic local state for drag - keeps value until server syncs
-  const [currentWidth, setLocalWidth, isLocalActive] = useOptimisticValue(storedWidth);
+  const [currentWidth, setLocalWidth] = useOptimisticValue(storedWidth);
   
   // Refs for values accessed in event handlers (prevents effect re-running during drag)
   const currentWidthRef = useRef(currentWidth);
@@ -91,56 +93,64 @@ export function MessageList() {
       startX: e.clientX,
       startWidthPercent: currentWidthRef.current,
     };
-    setLocalWidthRef.current(currentWidthRef.current); // Start tracking locally
+    dragEdgeRef.current = edge;
+    setIsDragging(true);
+
+    const container = wrapperRef.current;
+    if (container) {
+      container.style.width = `${currentWidthRef.current}%`;
+    }
   }, []); // No deps - uses refs
-  
-  // Handle drag move and end - only attach when actively dragging
+
+  // Handle drag move and end - attach once per drag (no React state updates per mousemove)
   useEffect(() => {
-    if (!isLocalActive) return;
-    
+    if (!isDragging) return;
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (!dragRef.current || !wrapperRef.current) return;
-      
+      const wrapper = wrapperRef.current;
+      if (!dragRef.current || !wrapper) return;
+
       const { edge, startX, startWidthPercent } = dragRef.current;
-      const parentWidth = wrapperRef.current.parentElement?.clientWidth ?? window.innerWidth;
-      
-      // Calculate mouse delta from start position
+      const parentWidth = wrapper.parentElement?.clientWidth ?? window.innerWidth;
+
       const deltaX = e.clientX - startX;
-      
-      // Convert delta to percentage (multiply by 2 for centered container)
       const deltaPercent = (deltaX * 2 / parentWidth) * 100;
-      
+
       let newWidthPercent: number;
       if (edge === 'right') {
         newWidthPercent = startWidthPercent + deltaPercent;
       } else {
         newWidthPercent = startWidthPercent - deltaPercent;
       }
-      
-      // Clamp and update LOCAL state only (no store update = no re-renders downstream)
+
       newWidthPercent = Math.max(20, Math.min(100, newWidthPercent));
-      setLocalWidthRef.current(newWidthPercent);
+      currentWidthRef.current = newWidthPercent;
+      wrapper.style.width = `${newWidthPercent}%`;
     };
-    
+
     const handleMouseUp = () => {
-      // Commit to store on release (persists to server)
-      setLayoutRef.current({ containerWidth: currentWidthRef.current });
+      setIsDragging(false);
+      const finalWidth = currentWidthRef.current;
       dragRef.current = null;
-      // Don't clear local state here! Hook clears it when server syncs
+      dragEdgeRef.current = null;
+
+      // Sync local UI state (one render) and persist to store.
+      setLocalWidthRef.current(finalWidth);
+      setLayoutRef.current({ containerWidth: finalWidth });
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isLocalActive]); // Only re-run when drag starts/stops, not during
+  }, [isDragging]);
   
   // Wrapper styles - no transition, instant response
   const wrapperStyle: CSSProperties = {
-    width: isMobile ? '100%' : `${currentWidth}%`,
+    width: isMobile ? '100%' : `${(isDragging ? currentWidthRef.current : currentWidth)}%`,
     margin: '0 auto',
     position: 'relative',
     height: '100%',
@@ -391,20 +401,26 @@ export function MessageList() {
       className="message-list-wrapper"
       ref={wrapperRef}
       style={wrapperStyle}
+      data-dragging={isDragging}
+      data-drag-edge={dragEdgeRef.current ?? undefined}
     >
       {/* Left resize handle - hidden on mobile */}
       {!isMobile && (
         <div
+          className="message-list-resize-handle"
           style={leftHandleStyle}
           onMouseDown={handleMouseDown('left')}
+          data-edge="left"
         />
       )}
       
       {/* Right resize handle - hidden on mobile */}
       {!isMobile && (
         <div
+          className="message-list-resize-handle"
           style={rightHandleStyle}
           onMouseDown={handleMouseDown('right')}
+          data-edge="right"
         />
       )}
       

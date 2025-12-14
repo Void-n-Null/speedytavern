@@ -23,6 +23,38 @@
   flex-shrink: 0;
 }
 
+/* Message List Resize Handles */
+.message-list-wrapper {
+  position: relative;
+}
+
+.message-list-resize-handle {
+  /* inline styles position it; this sets the interaction/visual rail */
+  user-select: none;
+  touch-action: none;
+}
+
+.message-list-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(160, 130, 255, 0);
+  transition: background-color 120ms ease;
+}
+
+.message-list-wrapper[data-dragging='true'] .message-list-resize-handle::before {
+  background: rgba(160, 130, 255, 0.95);
+}
+
+.message-list-wrapper:not([data-dragging='true']) .message-list-resize-handle:hover::before {
+  background: rgba(160, 130, 255, 0.55);
+}
+
 /* "Load more" indicator at top of message list */
 .message-list-load-more {
   padding: 12px;
