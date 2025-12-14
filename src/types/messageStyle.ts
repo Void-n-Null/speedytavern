@@ -235,6 +235,11 @@ export interface MarkdownStyleConfig {
   linkUnderline: boolean;
 }
 
+export interface CustomCssConfig {
+  enabled: boolean;
+  css: string;
+}
+
 // ============ Full Config ============
 export interface MessageStyleConfig {
   typography: TypographyConfig;
@@ -247,6 +252,7 @@ export interface MessageStyleConfig {
   animation: AnimationConfig;
   edit: EditConfig;
   markdown: MarkdownStyleConfig;
+  customCss: CustomCssConfig;
   pageBackground: PageBackgroundConfig;
   messageListBackground: MessageListBackgroundConfig;
   speakerOverrides: Record<string, Partial<MessageStyleConfig>>;
@@ -268,6 +274,7 @@ export const defaultTimestamp = defaultMessageStyleConfig.timestamp;
 export const defaultAnimation = defaultMessageStyleConfig.animation;
 export const defaultEdit = defaultMessageStyleConfig.edit;
 export const defaultMarkdown = defaultMessageStyleConfig.markdown;
+export const defaultCustomCss = defaultMessageStyleConfig.customCss;
 export const defaultPageBackground = defaultMessageStyleConfig.pageBackground;
 export const defaultMessageListBackground = defaultMessageStyleConfig.messageListBackground;
 
@@ -290,6 +297,7 @@ export function applyMessageStyleDefaults(partial: Partial<MessageStyleConfig> |
     animation: { ...defaultMessageStyleConfig.animation, ...(p as any).animation },
     edit: { ...defaultMessageStyleConfig.edit, ...(p as any).edit },
     markdown: { ...defaultMessageStyleConfig.markdown, ...(p as any).markdown },
+    customCss: { ...defaultMessageStyleConfig.customCss, ...(p as any).customCss },
     pageBackground: { ...defaultMessageStyleConfig.pageBackground, ...(p as any).pageBackground },
     messageListBackground: { ...defaultMessageStyleConfig.messageListBackground, ...(p as any).messageListBackground },
     speakerOverrides: (p as any).speakerOverrides ?? defaultMessageStyleConfig.speakerOverrides,

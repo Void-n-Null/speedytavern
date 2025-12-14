@@ -13,6 +13,7 @@ import type {
   AnimationConfig,
   EditConfig,
   MarkdownStyleConfig,
+  CustomCssConfig,
   PageBackgroundConfig,
   MessageListBackgroundConfig,
 } from '../../../types/messageStyle';
@@ -27,6 +28,7 @@ import {
   defaultAnimation,
   defaultEdit,
   defaultMarkdown,
+  defaultCustomCss,
   defaultPageBackground,
   defaultMessageListBackground,
   defaultMessageStyleConfig,
@@ -135,6 +137,16 @@ export function useMarkdownConfig(): MarkdownStyleConfig {
     select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).markdown,
   });
   return data ?? defaultMarkdown;
+}
+
+/** Custom CSS config with defaults */
+export function useCustomCssConfig(): CustomCssConfig {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => applyMessageStyleDefaults(profile?.messageStyle).customCss,
+  });
+  return data ?? defaultCustomCss;
 }
 
 /** Page background config with defaults */

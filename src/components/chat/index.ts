@@ -5,3 +5,4 @@ export { MessageContent } from './MessageContent';
 export { MessageMeta } from './MessageMeta';
 export { MessageActions } from './MessageActions';
 export { MessageBranchIndicator } from './MessageBranchIndicator';
+export { ChatComposer } from './ChatComposer';

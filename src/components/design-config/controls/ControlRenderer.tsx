@@ -120,6 +120,20 @@ export function ControlRenderer({ control, config, onChange, compact, isMobile }
       );
 
     case 'text':
+      if (control.key === 'customCss.css') {
+        return (
+          <ControlRow label={control.label} description={compact ? undefined : control.description} inline={false} isMobile={isMobile}>
+            <textarea
+              value={(value as string) || ''}
+              onChange={(e) => onChange(control.key, e.target.value)}
+              placeholder="/* Write CSS here */"
+              spellCheck={false}
+              className="w-full min-h-[220px] p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50 font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+            />
+          </ControlRow>
+        );
+      }
+
       return (
         <ControlRow label={control.label} description={compact ? undefined : control.description} inline={false} isMobile={isMobile}>
           <input

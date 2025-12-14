@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageList } from './components/chat';
+import { ChatComposer, MessageList } from './components/chat';
 import { AppToolbar } from './components/AppToolbar';
 import { DesignConfigModal } from './components/design-config/DesignConfigModal';
 import { useServerChatStatus } from './hooks/queries';
@@ -61,6 +61,8 @@ export function App() {
       <main className="flex-1 min-h-0 overflow-hidden">
         <MessageList />
       </main>
+
+      <ChatComposer />
 
       <DesignConfigModal open={showSettings} onOpenChange={setShowSettings} />
 

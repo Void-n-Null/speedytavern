@@ -49,7 +49,7 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
   const header = useHeaderConfig();
 
   const toolbarStyle: React.CSSProperties = useMemo(() => ({
-    width: isMobile || header.widthMode === 'full' ? '100%' : `${layout.containerWidth}%`,
+    width: isMobile || header.widthMode === 'full' ? '100%' : `${layout.containerWidth + 5}%`,
     margin: isMobile || header.widthMode === 'full' ? undefined : '0 auto',
     // Ensure header (and its box-shadow) paints above the message list below.
     // Without this, the next sibling's background can visually "cover" the shadow area.

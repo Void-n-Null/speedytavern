@@ -7,6 +7,7 @@ import { queryKeys } from '../../lib/queryClient';
 import type { ChatFull } from '../../api/client';
 import { MessageItem } from './MessageItem';
 import { MarkdownStyles } from './MarkdownStyles';
+import { CustomCssStyles } from './CustomCssStyles';
 import { pickRandomMessage } from '../../utils/generateDemoData';
 import { useMessageListLazyWindowing } from './hooks/useMessageListLazyWindowing';
 import { useMessageListScrollFollow } from './hooks/useMessageListScrollFollow';
@@ -204,6 +205,7 @@ export function MessageList() {
         <div className="message-list-content" ref={contentRef} style={messageListContentStyle}>
           {/* Dynamic markdown styles based on config */}
           <MarkdownStyles />
+          <CustomCssStyles />
           
           {visibleNodeIds.ids.map((nodeId, localIndex) => {
             // Convert local index to global index for animation calculations

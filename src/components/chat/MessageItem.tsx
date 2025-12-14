@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useState, useMemo, useCallback, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import type { ChatNode, Speaker } from '../../types/chat';
 import { MessageContent } from './MessageContent';
@@ -31,12 +31,17 @@ function arePropsEqual(prev: MessageItemProps, next: MessageItemProps): boolean 
   if (prev.node.id !== next.node.id) return false;
   if (prev.node.message !== next.node.message) return false;
   if (prev.node.speaker_id !== next.node.speaker_id) return false;
+  if (prev.node.is_bot !== next.node.is_bot) return false;
   if (prev.node.created_at !== next.node.created_at) return false;
+  if (prev.node.updated_at !== next.node.updated_at) return false;
+  if (prev.node.client_id !== next.node.client_id) return false;
   
   // Compare speaker data (not reference)
   if (prev.speaker.id !== next.speaker.id) return false;
   if (prev.speaker.name !== next.speaker.name) return false;
   if (prev.speaker.color !== next.speaker.color) return false;
+  if (prev.speaker.avatar_url !== next.speaker.avatar_url) return false;
+  if (prev.speaker.is_user !== next.speaker.is_user) return false;
   
   // Compare primitives
   if (prev.isFirstInGroup !== next.isFirstInGroup) return false;
@@ -79,8 +84,12 @@ export const MessageItem = memo(function MessageItem({
   const isNovel = layout.viewMode === 'novel';
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(node.message);
+  const [editContent, setEditContent] = useState('');
   const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) setEditContent(node.message);
+  }, [isEditing, node.message]);
 
   // If grouping is disabled, treat every message as first-in-group for meta rendering.
   // (MessageList computes isFirstInGroup purely from consecutive speakers.)

@@ -21,7 +21,7 @@ import {
 import type { TavernCardV2 } from '../../types/characterCard';
 import { Button } from '../ui/button';
 import { showToast } from '../ui/toast';
-import { ValidationBadge, validateCharacterCard } from './ValidationBadge';
+import { ValidationBadge, validateCharacterCard, type ValidationLevel } from './ValidationBadge';
 import { ImportExportBar } from './ImportExportBar';
 import { AvatarSection } from './sections/AvatarSection';
 import { CoreFieldsSection } from './sections/CoreFieldsSection';
@@ -30,6 +30,8 @@ import { ExampleMessagesSection } from './sections/ExampleMessagesSection';
 import { PromptOverridesSection } from './sections/PromptOverridesSection';
 import { CreatorMetadataSection } from './sections/CreatorMetadataSection';
 import { CharacterNoteSection } from './sections/CharacterNoteSection';
+import { TokenBudgetBar } from './detail/TokenBudgetBar';
+import { CharacterDetailInsights } from './detail/CharacterDetailInsights';
 import { cn } from '../../lib/utils';
 import { extractCardFromPngFile } from '../../utils/cardPng';
 
@@ -116,6 +118,7 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
   const autosaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [totalTokens, setTotalTokens] = useState<number | null>(null);
   // Monotonic counter for local edits. Used to avoid "late save response clears dirty state"
   // when the user typed more while a save was in flight.
   const dirtyVersionRef = useRef(0);
@@ -171,8 +174,100 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
   const validationMessages = useMemo(() => {
     return validateCharacterCard(formData);
   }, [formData]);
+
+  const editorValidationMessages = useMemo(() => {
+    const msgs = [...validationMessages];
+
+    // Editor-only gentle nudges (never block saving).
+    if (!formData.data.mes_example?.trim()) {
+      msgs.push({ level: 'info', message: 'Example messages are empty', field: 'mes_example' });
+    }
+
+    const emptyAlt = (formData.data.alternate_greetings || []).some((g) => !String(g || '').trim());
+    if (emptyAlt) {
+      msgs.push({ level: 'warning', message: 'One or more alternate greetings are empty', field: 'alternate_greetings' });
+    }
+
+    const tags = (formData.data.tags || []).map((t) => String(t || ''));
+    if (tags.some((t) => !t.trim())) {
+      msgs.push({ level: 'warning', message: 'One or more tags are empty', field: 'tags' });
+    }
+
+    return msgs;
+  }, [formData.data.alternate_greetings, formData.data.mes_example, formData.data.tags, validationMessages]);
   
   const hasErrors = validationMessages.some((m) => m.level === 'error');
+
+  const approxTokens = useMemo(() => {
+    const totalChars = [
+      formData.data.description,
+      formData.data.personality,
+      formData.data.scenario,
+      formData.data.first_mes,
+      (formData.data.alternate_greetings || []).join('\n\n'),
+      formData.data.mes_example,
+      formData.data.system_prompt,
+      formData.data.post_history_instructions,
+      formData.data.creator_notes,
+      (formData.data.extensions?.character_note as string) || '',
+    ].reduce((a, s) => a + (s || '').length, 0);
+    return Math.max(0, Math.round(totalChars / 4));
+  }, [
+    formData.data.alternate_greetings,
+    formData.data.creator_notes,
+    formData.data.description,
+    formData.data.extensions,
+    formData.data.first_mes,
+    formData.data.mes_example,
+    formData.data.personality,
+    formData.data.post_history_instructions,
+    formData.data.scenario,
+    formData.data.system_prompt,
+  ]);
+
+  const sectionIssueSummary = useMemo(() => {
+    const fieldToSection: Record<string, EditorSection> = {
+      name: 'core',
+      description: 'core',
+      personality: 'core',
+      scenario: 'core',
+
+      first_mes: 'greetings',
+      alternate_greetings: 'greetings',
+
+      mes_example: 'examples',
+
+      system_prompt: 'prompts',
+      post_history_instructions: 'prompts',
+
+      creator: 'metadata',
+      character_version: 'metadata',
+      creator_notes: 'metadata',
+      tags: 'metadata',
+
+      character_note: 'note',
+      note_depth: 'note',
+      note_role: 'note',
+    };
+
+    const order: Record<ValidationLevel, number> = { error: 0, warning: 1, info: 2, success: 3 };
+    const out: Partial<Record<EditorSection, { count: number; worst: ValidationLevel }>> = {};
+
+    for (const msg of editorValidationMessages) {
+      if (!msg.field) continue;
+      const section = fieldToSection[msg.field];
+      if (!section) continue;
+      const existing = out[section];
+      if (!existing) {
+        out[section] = { count: 1, worst: msg.level };
+      } else {
+        existing.count += 1;
+        if (order[msg.level] < order[existing.worst]) existing.worst = msg.level;
+      }
+    }
+
+    return out;
+  }, [editorValidationMessages]);
   
   // Avatar URL for display
   const avatarUrl =
@@ -420,20 +515,21 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
       </div>
       
       {/* Validation */}
-      {validationMessages.length > 0 && (
+      {editorValidationMessages.length > 0 && (
         <div className="shrink-0 px-6 py-3">
-          <ValidationBadge messages={validationMessages} />
+          <ValidationBadge messages={editorValidationMessages} />
         </div>
       )}
       
       {/* Main content - sidebar + content */}
       <div className="flex flex-1 min-h-0">
         {/* Section sidebar */}
-        <nav className="w-40 shrink-0 border-r border-zinc-800/50 bg-zinc-950/60 p-2 overflow-y-auto">
+        <nav className="w-44 shrink-0 border-r border-zinc-800/50 bg-zinc-950/60 p-2 overflow-y-auto">
           {SECTIONS.map((section) => (
             <button
               key={section.id}
               onClick={() => setActiveSection(section.id)}
+              aria-current={activeSection === section.id ? 'page' : undefined}
               className={cn(
                 'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
                 activeSection === section.id
@@ -442,102 +538,145 @@ export function CharacterEditor({ cardId, onClose, onSaved }: CharacterEditorPro
               )}
             >
               <section.icon className="h-4 w-4" />
-              {section.label}
+              <span className="flex-1 text-left">{section.label}</span>
+              {sectionIssueSummary[section.id]?.count ? (
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                    sectionIssueSummary[section.id]?.worst === 'error'
+                      ? 'bg-red-500/15 text-red-300'
+                      : sectionIssueSummary[section.id]?.worst === 'warning'
+                        ? 'bg-amber-500/15 text-amber-300'
+                        : sectionIssueSummary[section.id]?.worst === 'info'
+                          ? 'bg-blue-500/15 text-blue-300'
+                          : 'bg-zinc-800/60 text-zinc-300'
+                  )}
+                  title={`${sectionIssueSummary[section.id]?.count} issue(s)`}
+                >
+                  {sectionIssueSummary[section.id]?.count}
+                </span>
+              ) : null}
             </button>
           ))}
         </nav>
         
         {/* Section content */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-2xl">
-            {activeSection === 'core' && (
-              <div className="space-y-6">
-                <AvatarSection
-                  avatarUrl={avatarUrl}
-                  onAvatarChange={handleAvatarChange}
-                  onAvatarRemove={async () => {
-                    if (!cardId) {
-                      showToast({ message: 'Save the character first to manage the avatar', type: 'info' });
-                      return;
-                    }
-                    if (!confirm('Remove avatar?')) return;
-                    try {
-                      await deleteAvatar.mutateAsync(cardId);
-                      showToast({ message: 'Avatar removed', type: 'success' });
-                    } catch (err) {
-                      showToast({
-                        message: err instanceof Error ? err.message : 'Avatar removal failed',
-                        type: 'error',
-                      });
-                    }
-                  }}
-                  isUploading={updateAvatar.isPending || deleteAvatar.isPending}
-                />
+          <div className="mx-auto w-full max-w-5xl">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-w-0">
+                {activeSection === 'core' && (
+                  <div className="space-y-6">
+                    <AvatarSection
+                      avatarUrl={avatarUrl}
+                      onAvatarChange={handleAvatarChange}
+                      onAvatarRemove={async () => {
+                        if (!cardId) {
+                          showToast({ message: 'Save the character first to manage the avatar', type: 'info' });
+                          return;
+                        }
+                        if (!confirm('Remove avatar?')) return;
+                        try {
+                          await deleteAvatar.mutateAsync(cardId);
+                          showToast({ message: 'Avatar removed', type: 'success' });
+                        } catch (err) {
+                          showToast({
+                            message: err instanceof Error ? err.message : 'Avatar removal failed',
+                            type: 'error',
+                          });
+                        }
+                      }}
+                      isUploading={updateAvatar.isPending || deleteAvatar.isPending}
+                    />
 
-                <CoreFieldsSection
-                  name={formData.data.name}
-                  description={formData.data.description}
-                  personality={formData.data.personality}
-                  scenario={formData.data.scenario}
-                  onChange={(field, value) => updateData(field, value)}
-                />
+                    <CoreFieldsSection
+                      name={formData.data.name}
+                      description={formData.data.description}
+                      personality={formData.data.personality}
+                      scenario={formData.data.scenario}
+                      onChange={(field, value) => updateData(field, value)}
+                    />
+                  </div>
+                )}
+                
+                {activeSection === 'greetings' && (
+                  <GreetingSection
+                    firstMessage={formData.data.first_mes}
+                    alternateGreetings={formData.data.alternate_greetings}
+                    characterName={formData.data.name}
+                    userLabel="User"
+                    onChange={(field, value) => updateData(field, value as string | string[])}
+                  />
+                )}
+                
+                {activeSection === 'examples' && (
+                  <ExampleMessagesSection
+                    exampleMessages={formData.data.mes_example}
+                    characterName={formData.data.name}
+                    onChange={(value) => updateData('mes_example', value)}
+                  />
+                )}
+                
+                {activeSection === 'prompts' && (
+                  <PromptOverridesSection
+                    systemPrompt={formData.data.system_prompt}
+                    postHistoryInstructions={formData.data.post_history_instructions}
+                    onChange={(field, value) => updateData(field, value)}
+                  />
+                )}
+                
+                {activeSection === 'metadata' && (
+                  <CreatorMetadataSection
+                    creator={formData.data.creator}
+                    characterVersion={formData.data.character_version}
+                    creatorNotes={formData.data.creator_notes}
+                    tags={formData.data.tags}
+                    onChange={(field, value) => updateData(field, value as string | string[])}
+                  />
+                )}
+                
+                {activeSection === 'note' && (
+                  <CharacterNoteSection
+                    characterNote={(formData.data.extensions?.character_note as string) || ''}
+                    noteDepth={(formData.data.extensions?.note_depth as number) || 0}
+                    noteRole={(formData.data.extensions?.note_role as 'system' | 'user' | 'assistant') || 'system'}
+                    onChange={(field, value) => {
+                      const ext = formData.data.extensions || {};
+                      if (field === 'character_note') {
+                        ext.character_note = value;
+                      } else if (field === 'note_depth') {
+                        ext.note_depth = value;
+                      } else if (field === 'note_role') {
+                        ext.note_role = value;
+                      }
+                      updateData('extensions', ext);
+                    }}
+                  />
+                )}
               </div>
-            )}
-            
-            {activeSection === 'greetings' && (
-              <GreetingSection
-                firstMessage={formData.data.first_mes}
-                alternateGreetings={formData.data.alternate_greetings}
-                characterName={formData.data.name}
-                userLabel="User"
-                onChange={(field, value) => updateData(field, value as string | string[])}
-              />
-            )}
-            
-            {activeSection === 'examples' && (
-              <ExampleMessagesSection
-                exampleMessages={formData.data.mes_example}
-                characterName={formData.data.name}
-                onChange={(value) => updateData('mes_example', value)}
-              />
-            )}
-            
-            {activeSection === 'prompts' && (
-              <PromptOverridesSection
-                systemPrompt={formData.data.system_prompt}
-                postHistoryInstructions={formData.data.post_history_instructions}
-                onChange={(field, value) => updateData(field, value)}
-              />
-            )}
-            
-            {activeSection === 'metadata' && (
-              <CreatorMetadataSection
-                creator={formData.data.creator}
-                characterVersion={formData.data.character_version}
-                creatorNotes={formData.data.creator_notes}
-                tags={formData.data.tags}
-                onChange={(field, value) => updateData(field, value as string | string[])}
-              />
-            )}
-            
-            {activeSection === 'note' && (
-              <CharacterNoteSection
-                characterNote={(formData.data.extensions?.character_note as string) || ''}
-                noteDepth={(formData.data.extensions?.note_depth as number) || 0}
-                noteRole={(formData.data.extensions?.note_role as 'system' | 'user' | 'assistant') || 'system'}
-                onChange={(field, value) => {
-                  const ext = formData.data.extensions || {};
-                  if (field === 'character_note') {
-                    ext.character_note = value;
-                  } else if (field === 'note_depth') {
-                    ext.note_depth = value;
-                  } else if (field === 'note_role') {
-                    ext.note_role = value;
-                  }
-                  updateData('extensions', ext);
-                }}
-              />
-            )}
+
+              <aside className="space-y-4 lg:sticky lg:top-4 self-start">
+                <TokenBudgetBar
+                  totalTokens={totalTokens ?? approxTokens}
+                  loading={totalTokens === null}
+                />
+                <CharacterDetailInsights
+                  input={{
+                    name: formData.data.name,
+                    description: formData.data.description,
+                    personality: formData.data.personality,
+                    scenario: formData.data.scenario,
+                    firstMessage: formData.data.first_mes,
+                    alternateGreetings: formData.data.alternate_greetings,
+                    exampleMessages: formData.data.mes_example,
+                    systemPrompt: formData.data.system_prompt,
+                    postHistoryInstructions: formData.data.post_history_instructions,
+                    creatorNotes: formData.data.creator_notes,
+                  }}
+                  onTokensCalculated={setTotalTokens}
+                />
+              </aside>
+            </div>
           </div>
         </div>
       </div>

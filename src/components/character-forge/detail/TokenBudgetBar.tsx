@@ -1,7 +1,7 @@
 /**
  * TokenBudgetBar - budget UI that separates:
  * - Absolute prompt size (can affect cost/latency and sometimes adherence even on huge contexts)
- * - Relative fit vs a chosen target context window (32k/128k/200k/1M/custom)
+ * - Relative fit vs a chosen target context window (32k/128k/200k/custom)
  *
  * IMPORTANT: we can't reliably know the model context window in this app today (no canonical metadata),
  * so we provide Auto (best-effort inference) + explicit override.
@@ -21,15 +21,17 @@ const ZONES = [
   { id: 'bloated', label: 'Bloated', max: Infinity, color: 'bg-amber-500', desc: 'Likely overkill' },
 ] as const;
 
+const ULTRA_LONG_CONTEXT_THRESHOLD = 400_000;
+const PRACTICAL_CARD_BUDGET_CAP_ULTRA_LONG = 50_000;
+
 type Verdict = 'ok' | 'tight' | 'no' | 'unknown';
 
-type ContextPresetKey = 'auto' | '32k' | '128k' | '200k' | '1m' | 'custom';
+type ContextPresetKey = 'auto' | '32k' | '128k' | '200k' | 'custom';
 const CONTEXT_PRESETS: { key: ContextPresetKey; label: string; tokens: number | null }[] = [
   { key: 'auto', label: 'Auto', tokens: null },
   { key: '32k', label: '32K', tokens: 32_768 },
   { key: '128k', label: '128K', tokens: 128_000 },
   { key: '200k', label: '200K', tokens: 200_000 },
-  { key: '1m', label: '1M', tokens: 1_000_000 },
   { key: 'custom', label: 'Custom', tokens: null },
 ];
 
@@ -74,21 +76,31 @@ function VerdictBadge({ verdict, label }: { verdict: Verdict; label: string }) {
 function getAdvice(tokens: number, zone: typeof ZONES[number], fit: Verdict, contextTokens: number): string {
   if (tokens === 0) return 'Add some content to see budget analysis.';
 
+  const ultraLong = contextTokens >= ULTRA_LONG_CONTEXT_THRESHOLD;
+
   switch (zone.id) {
     case 'rich':
       return fit === 'no'
         ? `Rich + over budget. Either target a larger context than ${Math.round(contextTokens / 1000)}K, or trim to keep more room for history.`
-        : 'Rich character. Consider offloading deep lore into lorebooks/RAG so the core persona stays crisp.';
+        : ultraLong
+          ? 'Rich character. Huge contexts can dilute the “signal” of any single detail—keep the core persona compact and put deep lore into lorebooks/RAG.'
+          : 'Rich character. Consider offloading deep lore into lorebooks/RAG so the core persona stays crisp.';
     case 'bloated':
       return fit === 'no'
         ? `Bloated + over budget. This will crowd out conversation history even on large contexts.`
-        : 'Very large definition. Even if it fits the context, it can increase cost/latency and sometimes reduce instruction focus.';
+        : ultraLong
+          ? 'Very large definition. Even with massive contexts, models tend to rely most on what’s near the beginning/end—treat huge context as an archive and keep the persona lean.'
+          : 'Very large definition. Even if it fits the context, it can increase cost/latency and sometimes reduce instruction focus.';
     case 'lean':
-      return 'Lean and focused. Usually yields strong adherence and leaves lots of room for conversation.';
+      return ultraLong
+        ? 'Lean and focused. This is especially effective with huge contexts: keep the persona lean, and store bulk info elsewhere.'
+        : 'Lean and focused. Usually yields strong adherence and leaves lots of room for conversation.';
     case 'ideal':
       return fit === 'no'
         ? `Good absolute size, but your selected target context is small. Either raise target context or reduce a bit.`
-        : 'Great balance: enough depth without crowding out the conversation.';
+        : ultraLong
+          ? 'Great balance: enough depth without burying the important bits in an ultra-long prompt.'
+          : 'Great balance: enough depth without crowding out the conversation.';
     default:
       return '';
   }
@@ -102,6 +114,7 @@ export function TokenBudgetBar({
   loading?: boolean;
 }) {
   const tokens = totalTokens ?? 0;
+  const isEstimating = loading && tokens > 0;
 
   // Best-effort model inference (optional; used only for Auto context).
   const { data: profile } = useActiveProfile();
@@ -139,14 +152,20 @@ export function TokenBudgetBar({
     return RESERVE_PRESETS.find((r) => r.key === reservePreset)?.reserveFrac ?? 0.7;
   }, [reservePreset]);
 
-  const cardBudget = Math.max(0, Math.floor(contextTokens * (1 - reserveFrac)));
+  const rawCardBudget = Math.max(0, Math.floor(contextTokens * (1 - reserveFrac)));
+  const cardBudget =
+    contextTokens >= ULTRA_LONG_CONTEXT_THRESHOLD
+      ? Math.min(rawCardBudget, PRACTICAL_CARD_BUDGET_CAP_ULTRA_LONG)
+      : rawCardBudget;
   const fitVerdict = loading || tokens === 0 ? ('unknown' as Verdict) : getFitVerdict(tokens, cardBudget);
 
   const currentZone = useMemo(() => {
     return ZONES.find((z) => tokens <= z.max) ?? ZONES[ZONES.length - 1];
   }, [tokens]);
 
-  // Absolute gauge position (log scale works better for token ranges)
+  const ultraLong = contextTokens >= ULTRA_LONG_CONTEXT_THRESHOLD;
+  const relativeDenominator = ultraLong ? Math.max(1, cardBudget) : Math.max(1, contextTokens);
+
   const gaugePosition = useMemo(() => {
     if (tokens === 0) return 0;
     // Use log scale: 0 at 100 tokens, 100% at 10000 tokens
@@ -165,14 +184,14 @@ export function TokenBudgetBar({
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm font-medium text-zinc-200">Context Budget</div>
         <div className="flex items-center gap-2">
-          {loading ? (
+          {loading && !isEstimating ? (
             <span className="animate-pulse text-xs text-zinc-400">Calculating…</span>
           ) : (
             <>
               <span className="font-mono text-lg font-semibold text-zinc-100">
-                {tokens.toLocaleString()}
+                {isEstimating ? `≈${tokens.toLocaleString()}` : tokens.toLocaleString()}
               </span>
-              <span className="text-xs text-zinc-500">tokens</span>
+              <span className="text-xs text-zinc-500">tokens{isEstimating ? ' (est.)' : ''}</span>
             </>
           )}
         </div>
@@ -247,7 +266,7 @@ export function TokenBudgetBar({
             min={1000}
             step={1000}
           />
-          <div className="mt-1 text-[11px] text-zinc-500">e.g. 200000, 1000000</div>
+          <div className="mt-1 text-[11px] text-zinc-500">e.g. 200000</div>
         </div>
       </div>
 
@@ -294,13 +313,13 @@ export function TokenBudgetBar({
       {/* Relative fit */}
       <div className="mb-3">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-xs font-medium text-zinc-400">Fit vs target context</div>
+          <div className="text-xs font-medium text-zinc-400">Fit vs target budget</div>
           <div className="text-[11px] text-zinc-500">
             Card uses{' '}
             <span className="font-mono text-zinc-200">
-              {contextTokens ? ((tokens / contextTokens) * 100).toFixed(2) : '0.00'}%
+              {relativeDenominator ? ((tokens / relativeDenominator) * 100).toFixed(2) : '0.00'}%
             </span>{' '}
-            of context
+            {ultraLong ? 'of practical budget' : 'of context'}
           </div>
         </div>
         <div className="relative h-3 w-full overflow-hidden rounded-full bg-zinc-800/80">
