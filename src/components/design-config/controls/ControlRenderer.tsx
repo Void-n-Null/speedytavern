@@ -8,6 +8,7 @@ import { Switch } from '../../ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { ColorPicker } from './ColorPicker';
 import { SliderControl } from './SliderControl';
+import { CustomCssEditorControl } from './CustomCssEditorControl';
 import { getValueByPath, type ControlDefinition } from '../designConfigSchema';
 import { useFonts, useUploadFont, useDeleteFont } from '../../../hooks/queries/useFonts';
 import { useIsMobile } from '../../../hooks/useIsMobile';
@@ -123,12 +124,9 @@ export function ControlRenderer({ control, config, onChange, compact, isMobile }
       if (control.key === 'customCss.css') {
         return (
           <ControlRow label={control.label} description={compact ? undefined : control.description} inline={false} isMobile={isMobile}>
-            <textarea
+            <CustomCssEditorControl
               value={(value as string) || ''}
-              onChange={(e) => onChange(control.key, e.target.value)}
-              placeholder="/* Write CSS here */"
-              spellCheck={false}
-              className="w-full min-h-[220px] p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50 font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              onChange={(next) => onChange(control.key, next)}
             />
           </ControlRow>
         );

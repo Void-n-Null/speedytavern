@@ -15,7 +15,7 @@ import { inferContextWindowTokens } from '../../../utils/modelContext';
 
 // Absolute-size zones (opinionated defaults; still useful even for 1M+ contexts).
 const ZONES = [
-  { id: 'lean', label: 'Lean', max: 900, color: 'bg-emerald-500', desc: 'Fast & focused' },
+  { id: 'lean', label: 'Lean', max: 900, color: 'bg-emerald-500', desc: 'Probably under-described' },
   { id: 'ideal', label: 'Ideal', max: 2500, color: 'bg-blue-500', desc: 'Balanced depth' },
   { id: 'rich', label: 'Rich', max: 6000, color: 'bg-violet-500', desc: 'Very detailed' },
   { id: 'bloated', label: 'Bloated', max: Infinity, color: 'bg-amber-500', desc: 'Likely overkill' },
@@ -93,8 +93,8 @@ function getAdvice(tokens: number, zone: typeof ZONES[number], fit: Verdict, con
           : 'Very large definition. Even if it fits the context, it can increase cost/latency and sometimes reduce instruction focus.';
     case 'lean':
       return ultraLong
-        ? 'Lean and focused. This is especially effective with huge contexts: keep the persona lean, and store bulk info elsewhere.'
-        : 'Lean and focused. Usually yields strong adherence and leaves lots of room for conversation.';
+        ? 'Lean definition. You probably want more detail to make the character feel fully defined—keep the core persona tight, and store the extra lore elsewhere.'
+        : 'Lean definition. You probably want more information here so the character feels fleshed out (voice, goals, boundaries, relationships, quirks).';
     case 'ideal':
       return fit === 'no'
         ? `Good absolute size, but your selected target context is small. Either raise target context or reduce a bit.`

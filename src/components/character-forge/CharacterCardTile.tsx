@@ -38,6 +38,9 @@ export function CharacterCardTile({
     ? card.spec.replace('chara_card_', '').toUpperCase() 
     : 'V1';
 
+  const creatorLabel = typeof card.creator === 'string' && card.creator.trim().length > 0 ? card.creator.trim() : null;
+  const tokenLabel = typeof card.token_count === 'number' ? `${card.token_count.toLocaleString()} tok` : null;
+
   if (viewMode === 'list') {
     return (
       <div
@@ -72,7 +75,11 @@ export function CharacterCardTile({
         {/* Name & spec */}
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-zinc-200">{card.name}</div>
-          <div className="text-xs text-zinc-500">{specLabel}</div>
+          <div className="truncate text-xs text-zinc-500">
+            {specLabel}
+            {creatorLabel ? ` • ${creatorLabel}` : ''}
+            {tokenLabel ? ` • ${tokenLabel}` : ''}
+          </div>
         </div>
         
         {/* Actions */}
@@ -225,8 +232,14 @@ export function CharacterCardTile({
       {/* Card info */}
       <div className="relative p-3">
         <div className="truncate text-sm font-semibold text-zinc-100">{card.name}</div>
-        <div className="mt-0.5 text-[11px] text-zinc-500">
-          {new Date(card.updated_at).toLocaleDateString()}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-500">
+          <span>{new Date(card.updated_at).toLocaleDateString()}</span>
+          {creatorLabel && (
+            <span className="truncate">{creatorLabel}</span>
+          )}
+          {tokenLabel && (
+            <span>{tokenLabel}</span>
+          )}
         </div>
       </div>
     </div>

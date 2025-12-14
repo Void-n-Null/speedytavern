@@ -45,6 +45,9 @@ export interface CharacterCardRecordMeta {
   spec?: string;
   spec_version?: string;
   source: string;
+  creator?: string;
+  token_count?: number;
+  token_count_updated_at?: number;
   created_at: number;
   updated_at: number;
   png_mime?: string;

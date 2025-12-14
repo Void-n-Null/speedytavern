@@ -29,6 +29,36 @@ export function useCharacterCards() {
   });
 }
 
+// ============ Update Token Count (computed client-side) ============
+export function useUpdateCardTokenCount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, token_count }: { id: string; token_count: number }): Promise<{ success: boolean; token_count: number; token_count_updated_at: number }> => {
+      const res = await fetch(`${API_BASE}/${id}/token-count`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token_count }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || 'Failed to update token count');
+      }
+      return res.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<CharacterCardRecordMeta[] | undefined>(characterCardKeys.list(), (prev) => {
+        if (!prev) return prev;
+        return prev.map((c) =>
+          c.id === variables.id
+            ? { ...c, token_count: data.token_count, token_count_updated_at: data.token_count_updated_at }
+            : c
+        );
+      });
+    },
+  });
+}
+
 // ============ Get Single Card ============
 export function useCharacterCard(id: string | null) {
   return useQuery({

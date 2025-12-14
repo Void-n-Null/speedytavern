@@ -140,6 +140,9 @@ export function initDb(): Database {
       spec TEXT,
       spec_version TEXT,
       source TEXT NOT NULL DEFAULT 'unknown', /* png_chara | png_ccv3 | json | unknown */
+      creator TEXT,
+      token_count INTEGER,
+      token_count_updated_at INTEGER,
       raw_json TEXT NOT NULL,
       png_blob BLOB,
       png_mime TEXT,
@@ -155,6 +158,9 @@ export function initDb(): Database {
   try { db.run('ALTER TABLE character_cards ADD COLUMN png_mime TEXT'); } catch {}
   try { db.run('ALTER TABLE character_cards ADD COLUMN png_sha256 TEXT'); } catch {}
   try { db.run('ALTER TABLE character_cards ADD COLUMN png_updated_at INTEGER'); } catch {}
+  try { db.run('ALTER TABLE character_cards ADD COLUMN creator TEXT'); } catch {}
+  try { db.run('ALTER TABLE character_cards ADD COLUMN token_count INTEGER'); } catch {}
+  try { db.run('ALTER TABLE character_cards ADD COLUMN token_count_updated_at INTEGER'); } catch {}
 
   db.run('CREATE INDEX IF NOT EXISTS idx_character_cards_name ON character_cards(name)');
   db.run('CREATE INDEX IF NOT EXISTS idx_character_cards_spec ON character_cards(spec)');
