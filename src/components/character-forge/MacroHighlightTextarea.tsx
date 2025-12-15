@@ -1,22 +1,25 @@
 /**
- * MacroHighlightTextarea - Textarea with visual highlighting of macros.
+ * MacroHighlightTextarea - Textarea with visual highlighting of macros and inline autocomplete.
  * 
  * Highlights {{char}}, {{user}}, {{original}}, and other common macros
  * with distinct colors. Uses an overlay technique to show highlights
  * while keeping the textarea fully functional.
+ * 
+ * Features inline autocomplete when typing {{ to show available macros.
  */
 
-import { useRef, useLayoutEffect, useState, useId } from 'react';
+import { useRef, useLayoutEffect, useState, useId, useCallback, useEffect } from 'react';
 import { cn } from '../../lib/utils';
+import { MACRO_DEFINITIONS, MACRO_COLORS, type MacroDefinition } from '../../lib/macros';
 
-// Macro definitions with their highlight colors
+// Build regex patterns from macro definitions
 const MACRO_PATTERNS: Array<{ pattern: RegExp; className: string; label: string }> = [
-  { pattern: /\{\{char\}\}/gi, className: 'bg-violet-500/30 text-violet-300', label: 'Character name' },
-  { pattern: /\{\{user\}\}/gi, className: 'bg-blue-500/30 text-blue-300', label: 'User name' },
-  { pattern: /\{\{original\}\}/gi, className: 'bg-amber-500/30 text-amber-300', label: 'Original prompt' },
-  { pattern: /\{\{personality\}\}/gi, className: 'bg-emerald-500/30 text-emerald-300', label: 'Personality' },
-  { pattern: /\{\{scenario\}\}/gi, className: 'bg-cyan-500/30 text-cyan-300', label: 'Scenario' },
-  { pattern: /\{\{mes_example\}\}/gi, className: 'bg-pink-500/30 text-pink-300', label: 'Example messages' },
+  ...MACRO_DEFINITIONS.map((m) => ({
+    pattern: new RegExp(m.macro.replace(/[{}]/g, '\\$&').replace(/:[^}]+/, ':[^}]+'), 'gi'),
+    className: `${MACRO_COLORS[m.category].bg} ${MACRO_COLORS[m.category].text}`,
+    label: m.label,
+  })),
+  // Legacy markers
   { pattern: /<BOT>/gi, className: 'bg-violet-500/30 text-violet-300', label: 'Bot marker' },
   { pattern: /<USER>/gi, className: 'bg-blue-500/30 text-blue-300', label: 'User marker' },
   { pattern: /<START>/gi, className: 'bg-zinc-500/30 text-zinc-300', label: 'Start marker' },
@@ -46,7 +49,20 @@ export function MacroHighlightTextarea({
   const id = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  
+  // Autocomplete state
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [autocompleteFilter, setAutocompleteFilter] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [cursorPosition, setCursorPosition] = useState<{ top: number; left: number } | null>(null);
+  
+  // Get filtered macros for autocomplete
+  const filteredMacros = MACRO_DEFINITIONS.filter((m) =>
+    m.macro.toLowerCase().includes(autocompleteFilter.toLowerCase()) ||
+    m.label.toLowerCase().includes(autocompleteFilter.toLowerCase())
+  ).slice(0, 8); // Limit to 8 suggestions
   
   // Sync scroll position
   const handleScroll = () => {
@@ -55,6 +71,118 @@ export function MacroHighlightTextarea({
       backdropRef.current.scrollLeft = textareaRef.current.scrollLeft;
     }
   };
+  
+  // Check for {{ trigger and show autocomplete
+  const checkForAutocomplete = useCallback((text: string, cursorPos: number) => {
+    // Find the last {{ before cursor
+    const beforeCursor = text.slice(0, cursorPos);
+    const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+    
+    if (lastOpenBrace === -1) {
+      setShowAutocomplete(false);
+      return;
+    }
+    
+    // Check if there's a closing }} between {{ and cursor
+    const afterBrace = beforeCursor.slice(lastOpenBrace);
+    if (afterBrace.includes('}}')) {
+      setShowAutocomplete(false);
+      return;
+    }
+    
+    // Get the partial macro name being typed
+    const partial = afterBrace.slice(2); // Remove {{
+    setAutocompleteFilter(partial);
+    setSelectedIndex(0);
+    setShowAutocomplete(true);
+    
+    // Calculate cursor position for autocomplete popup
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      const style = getComputedStyle(textarea);
+      const lineHeight = parseInt(style.lineHeight) || 20;
+      const paddingTop = parseInt(style.paddingTop) || 12;
+      const paddingLeft = parseInt(style.paddingLeft) || 12;
+      
+      // Count lines before cursor
+      const linesBeforeCursor = beforeCursor.split('\n').length;
+      const currentLine = beforeCursor.split('\n').pop() || '';
+      
+      // Rough character width estimate (monospace)
+      const charWidth = 8;
+      
+      setCursorPosition({
+        top: paddingTop + (linesBeforeCursor - 1) * lineHeight + lineHeight,
+        left: paddingLeft + currentLine.length * charWidth,
+      });
+    }
+  }, []);
+  
+  // Insert selected macro
+  const insertMacro = useCallback((macro: MacroDefinition) => {
+    if (!textareaRef.current) return;
+    
+    const textarea = textareaRef.current;
+    const cursorPos = textarea.selectionStart;
+    const text = value;
+    
+    // Find the {{ before cursor
+    const beforeCursor = text.slice(0, cursorPos);
+    const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+    
+    if (lastOpenBrace === -1) return;
+    
+    // Replace from {{ to cursor with the full macro
+    const newValue = text.slice(0, lastOpenBrace) + macro.macro + text.slice(cursorPos);
+    onChange(newValue);
+    
+    // Move cursor after the inserted macro
+    const newCursorPos = lastOpenBrace + macro.macro.length;
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+    
+    setShowAutocomplete(false);
+  }, [value, onChange]);
+  
+  // Handle keyboard navigation in autocomplete
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showAutocomplete || filteredMacros.length === 0) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex((i) => (i + 1) % filteredMacros.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex((i) => (i - 1 + filteredMacros.length) % filteredMacros.length);
+        break;
+      case 'Enter':
+      case 'Tab':
+        if (filteredMacros[selectedIndex]) {
+          e.preventDefault();
+          insertMacro(filteredMacros[selectedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowAutocomplete(false);
+        break;
+    }
+  }, [showAutocomplete, filteredMacros, selectedIndex, insertMacro]);
+  
+  // Close autocomplete on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target as Node)) {
+        setShowAutocomplete(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   
   // Generate highlighted HTML
   const getHighlightedHtml = () => {
@@ -126,10 +254,22 @@ export function MacroHighlightTextarea({
           ref={textareaRef}
           id={id}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            onChange(e.target.value);
+            checkForAutocomplete(e.target.value, e.target.selectionStart);
+          }}
+          onKeyDown={handleKeyDown}
           onScroll={handleScroll}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onBlur={() => {
+            setIsFocused(false);
+            // Delay hiding autocomplete to allow click on suggestions
+            setTimeout(() => setShowAutocomplete(false), 150);
+          }}
+          onClick={(e) => {
+            const target = e.target as HTMLTextAreaElement;
+            checkForAutocomplete(value, target.selectionStart);
+          }}
           placeholder={placeholder}
           rows={rows}
           spellCheck={false}
@@ -148,6 +288,38 @@ export function MacroHighlightTextarea({
             background: 'rgba(24, 24, 27, 0.8)',
           }}
         />
+        
+        {/* Autocomplete dropdown */}
+        {showAutocomplete && filteredMacros.length > 0 && cursorPosition && (
+          <div
+            ref={autocompleteRef}
+            className="absolute z-50 max-h-48 overflow-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
+            style={{
+              top: Math.min(cursorPosition.top, 200),
+              left: Math.min(cursorPosition.left, 200),
+              minWidth: '220px',
+            }}
+          >
+            {filteredMacros.map((macro, i) => (
+              <button
+                key={macro.macro}
+                type="button"
+                className={cn(
+                  'flex w-full items-start gap-2 px-3 py-2 text-left text-xs',
+                  'hover:bg-zinc-800 transition-colors',
+                  i === selectedIndex && 'bg-zinc-800'
+                )}
+                onClick={() => insertMacro(macro)}
+                onMouseEnter={() => setSelectedIndex(i)}
+              >
+                <span className={cn('rounded px-1.5 py-0.5 font-mono', MACRO_COLORS[macro.category].bg, MACRO_COLORS[macro.category].text)}>
+                  {macro.macro}
+                </span>
+                <span className="text-zinc-500 truncate">{macro.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       
       {/* Macro legend (only when focused) */}

@@ -48,6 +48,22 @@ export function useUpsertPromptEngineeringPreset() {
   });
 }
 
+export function useSavePromptEngineeringStore() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ store }: { store: PromptEngineeringStore }): Promise<PromptEngineeringStore> => {
+      const normalized = normalizePromptEngineeringStore(store);
+      await settings.set(PROMPT_ENGINEERING_SETTINGS_KEY, normalized);
+      return normalized;
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData(queryKeys.settings.detail(PROMPT_ENGINEERING_SETTINGS_KEY), next);
+      queryClient.invalidateQueries({ queryKey: queryKeys.settings.all });
+    },
+  });
+}
+
 export function useImportSillyTavernPromptEngineeringPreset() {
   const queryClient = useQueryClient();
 
@@ -62,8 +78,12 @@ export function useImportSillyTavernPromptEngineeringPreset() {
 
       const current = normalizePromptEngineeringStore(currentRaw);
       const next = upsertPromptEngineeringPresetByName(current, preset);
-      await settings.set(PROMPT_ENGINEERING_SETTINGS_KEY, next);
-      return next;
+      const nextWithActive: PromptEngineeringStore = {
+        ...next,
+        activePresetId: preset.id,
+      };
+      await settings.set(PROMPT_ENGINEERING_SETTINGS_KEY, nextWithActive);
+      return nextWithActive;
     },
     onSuccess: (next) => {
       queryClient.setQueryData(queryKeys.settings.detail(PROMPT_ENGINEERING_SETTINGS_KEY), next);

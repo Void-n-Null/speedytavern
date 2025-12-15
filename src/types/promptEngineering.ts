@@ -4,6 +4,7 @@ import type {
   StReasoningTemplate,
   StSystemPromptTemplate,
 } from '../lib/sillyTavernAdvancedFormatting';
+import type { PromptLayout } from '../lib/promptLayout';
 
 export type PromptEngineeringPreset = {
   id: string;
@@ -15,6 +16,8 @@ export type PromptEngineeringPreset = {
   context?: StContextTemplate;
   sysprompt?: StSystemPromptTemplate;
   reasoning?: StReasoningTemplate;
+  /** Prompt block ordering for Chat Completion APIs */
+  promptLayout?: PromptLayout;
   unknownSections?: Record<string, unknown>;
 };
 

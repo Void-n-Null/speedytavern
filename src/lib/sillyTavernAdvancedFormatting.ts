@@ -43,6 +43,7 @@ export type StSystemPromptTemplate = {
   name: string;
   content: string;
   post_history?: string;
+  prefill?: string;
 };
 
 export type StReasoningTemplate = {
@@ -139,6 +140,7 @@ function normalizeSysprompt(raw: Record<string, unknown>): StSystemPromptTemplat
     name: str(raw.name, 'Imported'),
     content: str(raw.content),
     post_history: typeof raw.post_history === 'string' ? raw.post_history : undefined,
+    prefill: typeof raw.prefill === 'string' ? raw.prefill : undefined,
   };
 }
 

@@ -1,9 +1,10 @@
-import { Settings, Users } from 'lucide-react';
+import { Settings, Users, Wand2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useHeaderConfig, useLayoutConfig } from '../hooks/queries/useProfiles';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { PromptEngineeringModal } from './prompt-engineering/PromptEngineeringModal';
 
 interface AppToolbarProps {
   onOpenSettings: () => void;
@@ -47,6 +48,7 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
   const isMobile = useIsMobile();
   const layout = useLayoutConfig();
   const header = useHeaderConfig();
+  const [isPromptEngineeringOpen, setIsPromptEngineeringOpen] = useState(false);
 
   const toolbarStyle: React.CSSProperties = useMemo(() => ({
     width: isMobile || header.widthMode === 'full' ? '100%' : `${layout.containerWidth + 5}%`,
@@ -143,6 +145,15 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
           </Button>
         </Link>
         <Button
+          onClick={() => setIsPromptEngineeringOpen(true)}
+          variant={header.settingsButtonVariant}
+          size="icon"
+          className="shrink-0"
+          aria-label="Prompt engineering"
+        >
+          <Wand2 className="h-5 w-5" />
+        </Button>
+        <Button
           onClick={onOpenSettings}
           variant={header.settingsButtonVariant}
           size="icon"
@@ -219,9 +230,12 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
 
   if (!hoverRevealEnabled) {
     return (
-      <header className="shrink-0" style={toolbarStyle}>
-        {headerContent}
-      </header>
+      <>
+        <header className="shrink-0" style={toolbarStyle}>
+          {headerContent}
+        </header>
+        <PromptEngineeringModal open={isPromptEngineeringOpen} onOpenChange={setIsPromptEngineeringOpen} />
+      </>
     );
   }
 
@@ -273,6 +287,8 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
           {headerContent}
         </header>
       </div>
+
+      <PromptEngineeringModal open={isPromptEngineeringOpen} onOpenChange={setIsPromptEngineeringOpen} />
     </>
   );
 }
