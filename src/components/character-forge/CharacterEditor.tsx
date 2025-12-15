@@ -120,6 +120,39 @@ function computeSectionIssueSummary(draft: TavernCardV2): Partial<Record<EditorS
   return out;
 }
 
+function shallowEqualSectionIssueSummary(
+  a: Partial<Record<EditorSection, { count: number; worst: ValidationLevel }>>,
+  b: Partial<Record<EditorSection, { count: number; worst: ValidationLevel }>>
+): boolean {
+  if (a === b) return true;
+  const sections: EditorSection[] = ['core', 'greetings', 'examples', 'prompts', 'metadata', 'note'];
+  for (const s of sections) {
+    const av = a[s];
+    const bv = b[s];
+    if (!av && !bv) continue;
+    if (!av || !bv) return false;
+    if (av.count !== bv.count) return false;
+    if (av.worst !== bv.worst) return false;
+  }
+  return true;
+}
+
+function shallowEqualEditorMessages(
+  a: Array<{ level: ValidationLevel; message: string; field?: string }>,
+  b: Array<{ level: ValidationLevel; message: string; field?: string }>
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const ai = a[i];
+    const bi = b[i];
+    if (ai.level !== bi.level) return false;
+    if (ai.message !== bi.message) return false;
+    if ((ai.field || '') !== (bi.field || '')) return false;
+  }
+  return true;
+}
+
 // Default V2 card structure
 function createEmptyCard(): TavernCardV2 {
   return {
@@ -556,7 +589,10 @@ const EditorSectionNav = memo(function EditorSectionNav({
   const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const computeNow = () => setSectionIssueSummary(computeSectionIssueSummary(getCharacterEditorDraftSnapshot()));
+    const computeNow = () => {
+      const next = computeSectionIssueSummary(getCharacterEditorDraftSnapshot());
+      setSectionIssueSummary((prev) => (shallowEqualSectionIssueSummary(prev, next) ? prev : next));
+    };
     computeNow();
 
     const unsub = useCharacterEditorStore.subscribe(
@@ -621,7 +657,10 @@ const EditorValidationBar = memo(function EditorValidationBar() {
   const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const computeNow = () => setMessages(computeEditorMessages(getCharacterEditorDraftSnapshot()));
+    const computeNow = () => {
+      const next = computeEditorMessages(getCharacterEditorDraftSnapshot());
+      setMessages((prev) => (shallowEqualEditorMessages(prev, next) ? prev : next));
+    };
     computeNow();
 
     const unsub = useCharacterEditorStore.subscribe(
