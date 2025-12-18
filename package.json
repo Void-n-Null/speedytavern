@@ -8,6 +8,7 @@
     "dev:client": "vite",
     "dev:server": "bun run --watch server/index.ts",
     "tierlist": "bun run scripts/divide-or-be-conquered-tierlist.ts",
+    "zombie-hunt": "bun run scripts/zombie-hunt.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
