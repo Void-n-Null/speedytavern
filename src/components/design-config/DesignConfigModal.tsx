@@ -8,179 +8,26 @@
  * - Toast notifications for all actions
  */
 
-import { useState, useRef, useEffect, useMemo, memo, startTransition, useCallback } from 'react';
+import { useState, useRef, useEffect, memo, startTransition, useCallback } from 'react';
 import { ChevronRight, Rows3, LayoutGrid } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { cn } from '../../lib/utils';
 import { Dialog, DialogContent } from '../ui/dialog';
-import { Button } from '../ui/button';
 import { useActiveMessageStyle } from '../../hooks/queries/useProfiles';
-import { interfaceDesignSections, type ControlDefinition } from './designConfigSchema';
+import { interfaceDesignSections } from './designConfigSchema';
 import { useDesignConfigModalState } from '../../store/designConfigModalState';
 import { useShallow } from 'zustand/react/shallow';
 
 // Extracted components
-import { ControlRenderer } from './controls';
-import { GroupRenderer } from './GroupRenderer';
-import { ProfileSection } from './ProfileSection';
 import { ExpandableSearch } from '../ui/expandable-search';
 import { MobileSectionNav } from './MobileSectionNav';
+import { SectionContent } from './SectionContent';
+import { SearchResults } from './SearchResults';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface DesignConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-const SectionContent = memo(function SectionContent({
-  sectionId,
-  compactMode,
-  config,
-  onChange,
-  section,
-  isMobile,
-}: {
-  sectionId: string;
-  compactMode: boolean;
-  config: Record<string, unknown>;
-  onChange: (key: string, value: unknown) => void;
-  section: typeof interfaceDesignSections[number];
-  isMobile: boolean;
-}) {
-  return (
-    <div className={cn(!isMobile && 'max-w-3xl space-y-4', isMobile && 'space-y-3')}>
-      <div className={cn(isMobile ? 'mb-4' : 'mb-5')}>
-        <h3 className="text-sm font-semibold text-zinc-100">{section.label}</h3>
-        <p className="text-xs text-zinc-500 mt-0.5">{section.description}</p>
-      </div>
-
-      {sectionId === 'profile' ? (
-        <ProfileSection />
-      ) : (
-        section.groups.map((group, i) => (
-          <GroupRenderer
-            key={group.title || i}
-            group={group}
-            config={config}
-            onChange={onChange}
-            compact={compactMode}
-            groupIndex={i}
-            sectionId={sectionId}
-            isMobile={isMobile}
-          />
-        ))
-      )}
-    </div>
-  );
-});
-
-// ============ Confirmation Dialog ============
-
-function ConfirmDialog() {
-  const confirmDialog = useDesignConfigModalState(s => s.confirmDialog);
-  const hideConfirm = useDesignConfigModalState(s => s.hideConfirm);
-  
-  if (!confirmDialog.open) return null;
-  
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 max-w-sm w-full mx-4 shadow-2xl">
-        <h3 className="text-base font-semibold text-zinc-100 mb-2">{confirmDialog.title}</h3>
-        <p className="text-sm text-zinc-400 mb-5">{confirmDialog.message}</p>
-        <div className="flex gap-2 justify-end">
-          <Button variant="outline" size="sm" onClick={hideConfirm}>
-            Cancel
-          </Button>
-          <Button 
-            variant="destructive" 
-            size="sm" 
-            onClick={() => {
-              confirmDialog.onConfirm?.();
-              hideConfirm();
-            }}
-          >
-            Confirm
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============ Search Results ============
-
-interface SearchResult {
-  sectionId: string;
-  sectionLabel: string;
-  control: ControlDefinition;
-}
-
-function SearchResults({ 
-  query, 
-  config, 
-  onChange,
-  onNavigate,
-  isMobile,
-}: { 
-  query: string; 
-  config: Record<string, unknown>;
-  onChange: (key: string, value: unknown) => void;
-  onNavigate: (sectionId: string) => void;
-  isMobile: boolean;
-}) {
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    const matches: SearchResult[] = [];
-    
-    for (const section of interfaceDesignSections) {
-      if (section.id === 'profile') continue;
-      for (const group of section.groups) {
-        for (const control of group.controls) {
-          const searchText = `${control.label} ${control.description || ''} ${control.key}`.toLowerCase();
-          if (searchText.includes(q)) {
-            matches.push({
-              sectionId: section.id,
-              sectionLabel: section.label,
-              control,
-            });
-          }
-        }
-      }
-    }
-    return matches.slice(0, 10);
-  }, [query]);
-
-  if (!query.trim()) return null;
-  
-  if (results.length === 0) {
-    return (
-      <div className="p-4 text-sm text-zinc-500 text-center">
-        No settings found for "{query}"
-      </div>
-    );
-  }
-
-  return (
-    <div className="divide-y divide-zinc-800/50">
-      {results.map((result) => (
-        <div key={result.control.key} className="p-3">
-          <button
-            onClick={() => onNavigate(result.sectionId)}
-            className="text-xs text-violet-400 hover:text-violet-300 mb-1"
-          >
-            {result.sectionLabel} →
-          </button>
-          <ControlRenderer
-            control={result.control}
-            config={config}
-            onChange={onChange}
-            compact
-            isMobile={isMobile}
-          />
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // ============ Main Modal ============
