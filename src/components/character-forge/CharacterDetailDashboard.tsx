@@ -10,14 +10,16 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Copy, Download, Pencil, User, X, MessageSquareText, Sparkles, Check } from 'lucide-react';
-import { Button } from '../ui/button';
+import { MessageSquareText, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { parseExampleMessages } from '../../utils/exampleMessages';
 import { Card, CodeBlock, MarkdownBlock } from './detail/DetailBlocks';
 import { CharacterDetailInsights } from './detail/CharacterDetailInsights';
 import { TokenBudgetBar } from './detail/TokenBudgetBar';
 import { CollapsibleText } from './detail/CollapsibleText';
+import { CopyButton } from './detail/CopyButton';
+import { HeroHeader } from './detail/HeroHeader';
+import { ExampleMessagesDisplay } from './detail/ExampleMessagesDisplay';
 
 export type CharacterDetailDashboardData = {
   id: string;
@@ -44,28 +46,6 @@ export type CharacterDetailDashboardData = {
   creatorNotes: string;
 };
 
-// Copyable card header helper
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  if (!text?.trim()) return null;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-      aria-label="Copy"
-    >
-      {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-    </button>
-  );
-}
-
 export function CharacterDetailDashboard({
   data,
   onEdit,
@@ -83,7 +63,6 @@ export function CharacterDetailDashboard({
 }) {
   const HUGE_TEXT_CHARS = 50_000;
   const RAW_JSON_PREVIEW_CHARS = 4_000;
-  const [imgError, setImgError] = useState(false);
   const [greetingIndex, setGreetingIndex] = useState(0);
   const [totalTokens, setTotalTokens] = useState<number | null>(null);
   const [jsonExpanded, setJsonExpanded] = useState(false);
@@ -102,91 +81,14 @@ export function CharacterDetailDashboard({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-zinc-950/50">
-      {/* Hero header - compact */}
-      <div className="shrink-0 border-b border-zinc-800/50 bg-zinc-950/80 px-6 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800 shadow-lg">
-              {data.hasPng && data.avatarUrl && !imgError ? (
-                <img
-                  src={data.avatarUrl}
-                  alt={data.name}
-                  className="h-full w-full object-cover"
-                  onError={() => setImgError(true)}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-zinc-600">
-                  <User className="h-6 w-6" />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <div
-                className="text-xl font-bold text-zinc-100"
-              >
-                {data.name}
-              </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                <span className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-[11px]">
-                  {data.specLabel}
-                </span>
-                {data.creator && (
-                  <span className="rounded bg-zinc-900/60 px-2 py-0.5">by {data.creator}</span>
-                )}
-                {data.characterVersion && (
-                  <span className="rounded bg-zinc-900/60 px-2 py-0.5">v{data.characterVersion}</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onCopyJson}>
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
-            <Button size="sm" variant="outline" onClick={onExportJson}>
-              <Download className="h-4 w-4" />
-              JSON
-            </Button>
-            {data.hasPng && (
-              <Button size="sm" variant="outline" onClick={onExportPng}>
-                <Download className="h-4 w-4" />
-                PNG
-              </Button>
-            )}
-            <Button
-              size="sm"
-              onClick={onEdit}
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Button>
-            <button
-              onClick={onClose}
-              className="ml-1 rounded-lg p-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {data.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {data.tags.map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-200"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <HeroHeader
+        data={data}
+        onEdit={onEdit}
+        onClose={onClose}
+        onCopyJson={onCopyJson}
+        onExportJson={onExportJson}
+        onExportPng={onExportPng}
+      />
 
       {/* Dashboard content - independent rows */}
       <div className="flex-1 overflow-y-auto p-4">
@@ -256,45 +158,12 @@ export function CharacterDetailDashboard({
               className="col-span-6 lg:col-span-3"
               headerRight={<CopyButton text={data.exampleMessages} />}
             >
-              {examplesParsed?.ok ? (
-                <div className="max-h-[320px] space-y-3 overflow-y-auto">
-                  {examplesParsed.conversations.map((conv, i) => (
-                    <div
-                      key={conv.id}
-                      className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3"
-                    >
-                      <div className="mb-2 text-xs font-medium text-zinc-400">
-                        Conversation {i + 1}
-                      </div>
-                      <div className="space-y-2">
-                        {conv.messages.map((m, idx) => (
-                          <div
-                            key={idx}
-                            className={cn(
-                              'rounded-lg px-3 py-2 text-sm',
-                              m.role === 'user'
-                                ? 'border border-blue-500/20 bg-blue-500/10 text-blue-100'
-                                : 'border border-violet-500/20 bg-violet-500/10 text-violet-100'
-                            )}
-                          >
-                            <div className="mb-1 text-[11px] font-medium opacity-70">
-                              {m.role === 'user' ? 'User' : data.name || 'Character'}
-                            </div>
-                            <div className="whitespace-pre-wrap">{m.content}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-sm text-amber-200">
-                    {examplesParsed === null ? 'Too large to parse. Showing raw.' : 'Non-standard format. Showing raw.'}
-                  </div>
-                  <CodeBlock text={data.exampleMessages} maxHeightClass="max-h-[200px]" maxChars={60_000} />
-                </div>
-              )}
+              <ExampleMessagesDisplay
+                examplesParsed={examplesParsed}
+                charName={data.name}
+                rawExampleMessages={data.exampleMessages}
+                CodeBlock={CodeBlock}
+              />
             </Card>
           </div>
 
