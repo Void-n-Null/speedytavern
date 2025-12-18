@@ -183,3 +183,36 @@ export const MACRO_COLORS: Record<MacroDefinition['category'], { bg: string; tex
   time: { bg: 'bg-emerald-500/30', text: 'text-emerald-300' },
   utility: { bg: 'bg-zinc-500/30', text: 'text-zinc-300' },
 };
+
+export type MacroReplacements = Record<string, string | (() => string)>;
+
+/**
+ * Replace macros in a string.
+ * Supports static strings and dynamic generators.
+ */
+export function replaceMacros(text: string, replacements: MacroReplacements): string {
+  if (!text) return '';
+  
+  return text.replace(/\{\{([^}]+)\}\}/g, (match, macroName) => {
+    const fullMacro = `{{${macroName}}}`;
+    const value = replacements[fullMacro] || replacements[fullMacro.toLowerCase()];
+    
+    if (typeof value === 'function') {
+      return value();
+    }
+    
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    // Handle parameterized macros if they match a known pattern
+    if (macroName.toLowerCase().startsWith('random:')) {
+      const parts = macroName.slice(7).split(',');
+      if (parts.length > 0) {
+        return parts[Math.floor(Math.random() * parts.length)].trim();
+      }
+    }
+
+    return match; // Return original if no replacement found
+  });
+}
