@@ -1,14 +1,13 @@
 /**
- * Design Config Modal UI State
+ * Settings Modal UI State
  * 
  * Persists modal state (active section, scroll position) across open/close cycles.
- * This makes tweaking design settings much smoother - you stay where you were.
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface DesignConfigModalState {
+interface SettingsModalState {
   // Navigation
   activeSection: string;
   scrollPosition: number;
@@ -38,10 +37,10 @@ interface DesignConfigModalState {
   hideConfirm: () => void;
 }
 
-export const useDesignConfigModalState = create<DesignConfigModalState>()(
+export const useSettingsModalState = create<SettingsModalState>()(
   persist(
     (set) => ({
-      activeSection: 'profile',
+      activeSection: 'profiles',
       scrollPosition: 0,
       searchQuery: '',
       compactMode: false,
@@ -49,7 +48,6 @@ export const useDesignConfigModalState = create<DesignConfigModalState>()(
       confirmDialog: { open: false, title: '', message: '', onConfirm: null },
       
       setActiveSection: (section) => set((s) => {
-        // Avoid triggering rerenders when nothing changes (important for holding arrow keys at list bounds)
         if (s.activeSection === section) return s;
         return { activeSection: section, scrollPosition: 0 };
       }),
@@ -70,10 +68,10 @@ export const useDesignConfigModalState = create<DesignConfigModalState>()(
       }),
     }),
     {
-      name: 'design-config-modal',
+      name: 'settings-modal-state',
       partialize: (state) => ({
         compactMode: state.compactMode,
-        // Don't persist collapsedGroups as Set doesn't serialize well
+        activeSection: state.activeSection,
       }),
     }
   )
