@@ -1,21 +1,27 @@
 import type {
   StContextTemplate,
   StInstructTemplate,
+  StOutputTemplate,
   StReasoningTemplate,
   StSystemPromptTemplate,
 } from '../lib/sillyTavernAdvancedFormatting';
 import type { PromptLayout } from '../lib/promptLayout';
+
+export type PromptEngineeringMode = 'chat' | 'text';
 
 export type PromptEngineeringPreset = {
   id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
+  mode: PromptEngineeringMode;
   source: 'manual' | 'sillytavern';
   instruct?: StInstructTemplate;
   context?: StContextTemplate;
   sysprompt?: StSystemPromptTemplate;
   reasoning?: StReasoningTemplate;
+  /** New unified output settings (reasoning + stop strings + response processing) */
+  output?: StOutputTemplate;
   /** Prompt block ordering for Chat Completion APIs */
   promptLayout?: PromptLayout;
   unknownSections?: Record<string, unknown>;
@@ -52,16 +58,26 @@ export function normalizePromptEngineeringStore(input: unknown): PromptEngineeri
     const updatedAt = typeof pr.updatedAt === 'number' ? pr.updatedAt : createdAt;
     const source = pr.source === 'sillytavern' || pr.source === 'manual' ? pr.source : 'manual';
 
+    const mode =
+      pr.mode === 'chat' || pr.mode === 'text'
+        ? pr.mode
+        : pr.promptLayout || !pr.context
+        ? 'chat'
+        : 'text';
+
     const preset: PromptEngineeringPreset = {
       id,
       name,
       createdAt,
       updatedAt,
       source,
+      mode,
       ...(pr.instruct ? { instruct: pr.instruct as any } : {}),
       ...(pr.context ? { context: pr.context as any } : {}),
       ...(pr.sysprompt ? { sysprompt: pr.sysprompt as any } : {}),
       ...(pr.reasoning ? { reasoning: pr.reasoning as any } : {}),
+      ...(pr.output ? { output: pr.output as any } : {}),
+      ...(pr.promptLayout ? { promptLayout: pr.promptLayout as any } : {}),
       ...(pr.unknownSections && typeof pr.unknownSections === 'object'
         ? { unknownSections: pr.unknownSections as Record<string, unknown> }
         : {}),

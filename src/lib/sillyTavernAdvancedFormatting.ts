@@ -53,6 +53,21 @@ export type StReasoningTemplate = {
   separator: string;
 };
 
+/** Extended output settings - combines reasoning detection, stop strings, and response processing */
+export type StOutputTemplate = {
+  name: string;
+  // Reasoning detection
+  reasoning_prefix: string;
+  reasoning_suffix: string;
+  reasoning_separator: string;
+  auto_parse_reasoning: boolean;
+  // Stop strings
+  custom_stop_strings: string[];
+  // Response processing
+  trim_incomplete_sentences: boolean;
+  single_line_mode: boolean;
+};
+
 export type SillyTavernAdvancedFormattingImport = {
   source: 'sillytavern';
   importedAt: number;
@@ -150,6 +165,27 @@ function normalizeReasoning(raw: Record<string, unknown>): StReasoningTemplate {
     prefix: str(raw.prefix),
     suffix: str(raw.suffix),
     separator: str(raw.separator),
+  };
+}
+
+function strArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
+  return [];
+}
+
+export function normalizeOutput(raw: Record<string, unknown>): StOutputTemplate {
+  return {
+    name: str(raw.name, 'Output'),
+    // Reasoning - support both old and new field names
+    reasoning_prefix: str(raw.reasoning_prefix ?? raw.prefix),
+    reasoning_suffix: str(raw.reasoning_suffix ?? raw.suffix),
+    reasoning_separator: str(raw.reasoning_separator ?? raw.separator),
+    auto_parse_reasoning: bool(raw.auto_parse_reasoning, true),
+    // Stop strings
+    custom_stop_strings: strArray(raw.custom_stop_strings),
+    // Response processing
+    trim_incomplete_sentences: bool(raw.trim_incomplete_sentences),
+    single_line_mode: bool(raw.single_line_mode),
   };
 }
 
