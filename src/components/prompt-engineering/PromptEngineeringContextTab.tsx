@@ -56,6 +56,15 @@ export function PromptEngineeringContextTab({
               hasContent={layout.blocks.some(b => b.enabled)}
             />
           </div>
+
+          <div className="space-y-3">
+            <BoolFieldRow
+              label="Flatten Chat Prompt"
+              checked={!!layout.flatten}
+              onCheckedChange={(flatten) => onChange({ ...preset, promptLayout: { ...layout, flatten } })}
+              description="Merge all enabled blocks into a single system message. Useful for Instruct models that perform better with a unified context block."
+            />
+          </div>
           
           <PromptLayoutEditor
             layout={layout}

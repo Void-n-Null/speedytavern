@@ -56,6 +56,12 @@ export interface PromptLayout {
   blocks: PromptBlock[];
   /** Layout name for saving/loading */
   name: string;
+  /** 
+   * Whether to flatten the entire prompt into a single message.
+   * - false: Each block is a separate message (standard Chat Completion)
+   * - true: All blocks are merged into one message (better for some Instruct models)
+   */
+  flatten?: boolean;
 }
 
 /** Default prompt blocks with sensible ordering */

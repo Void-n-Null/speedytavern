@@ -77,7 +77,14 @@ export function normalizePromptEngineeringStore(input: unknown): PromptEngineeri
       ...(pr.sysprompt ? { sysprompt: pr.sysprompt as any } : {}),
       ...(pr.reasoning ? { reasoning: pr.reasoning as any } : {}),
       ...(pr.output ? { output: pr.output as any } : {}),
-      ...(pr.promptLayout ? { promptLayout: pr.promptLayout as any } : {}),
+      ...(pr.promptLayout
+        ? {
+            promptLayout: {
+              ...pr.promptLayout,
+              flatten: !!(pr.promptLayout as any).flatten,
+            } as any,
+          }
+        : {}),
       ...(pr.unknownSections && typeof pr.unknownSections === 'object'
         ? { unknownSections: pr.unknownSections as Record<string, unknown> }
         : {}),
