@@ -15,6 +15,9 @@ export const chatRoutes = new Hono();
 interface ChatRow {
   id: string;
   name: string;
+  character_ids: string; // JSON array
+  persona_id: string | null;
+  tags: string; // JSON array
   created_at: number;
   updated_at: number;
 }
@@ -35,12 +38,20 @@ interface NodeRow {
 // ============ List all chats (metadata only) ============
 chatRoutes.get('/', (c) => {
   const chats = prepare<ChatRow>(`
-    SELECT id, name, created_at, updated_at 
+    SELECT id, name, character_ids, persona_id, tags, created_at, updated_at 
     FROM chats 
     ORDER BY updated_at DESC
   `).all() as ChatRow[];
   
-  return c.json(chats);
+  return c.json(chats.map(row => ({
+    id: row.id,
+    name: row.name,
+    character_ids: JSON.parse(row.character_ids),
+    persona_id: row.persona_id,
+    tags: JSON.parse(row.tags),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  })));
 });
 
 interface SpeakerRow {
@@ -121,6 +132,9 @@ chatRoutes.get('/:id', (c) => {
     return c.json({
       id: cached.id,
       name: cached.name,
+      character_ids: cached.characterIds,
+      persona_id: cached.personaId,
+      tags: cached.tags,
       speakerIds,
       speakers,
       nodes: wireNodes,
@@ -169,10 +183,16 @@ chatRoutes.get('/:id', (c) => {
     }
   }
   
+  const characterIds = JSON.parse(chat.character_ids);
+  const tags = JSON.parse(chat.tags);
+
   // Cache it
   cached = {
     id: chat.id,
     name: chat.name,
+    characterIds,
+    personaId: chat.persona_id,
+    tags,
     nodes,
     rootId,
     tailId,
@@ -185,6 +205,9 @@ chatRoutes.get('/:id', (c) => {
   return c.json({
     id: chat.id,
     name: chat.name,
+    character_ids: characterIds,
+    persona_id: chat.persona_id,
+    tags,
     speakerIds,
     speakers,
     nodes: wireNodes,
@@ -195,14 +218,40 @@ chatRoutes.get('/:id', (c) => {
 
 // ============ Create new chat ============
 chatRoutes.post('/', async (c) => {
-  const body = await c.req.json<{ name: string }>();
+  const body = await c.req.json<{
+    name: string;
+    character_ids?: string[];
+    persona_id?: string;
+    tags?: string[];
+  }>();
+  
   const id = crypto.randomUUID();
   const now = Date.now();
+  const charIds = JSON.stringify(body.character_ids || []);
+  const tags = JSON.stringify(body.tags || []);
   
-  prepare('INSERT INTO chats (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
-    .run(id, body.name, now, now);
+  prepare(`
+    INSERT INTO chats (id, name, character_ids, persona_id, tags, created_at, updated_at) 
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, 
+    body.name, 
+    charIds, 
+    body.persona_id ?? null, 
+    tags, 
+    now, 
+    now
+  );
   
-  return c.json({ id, name: body.name, created_at: now, updated_at: now }, 201);
+  return c.json({
+    id,
+    name: body.name,
+    character_ids: body.character_ids || [],
+    persona_id: body.persona_id || null,
+    tags: body.tags || [],
+    created_at: now,
+    updated_at: now
+  }, 201);
 });
 
 // ============ Update chat metadata ============
