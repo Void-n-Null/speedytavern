@@ -8,6 +8,9 @@ import type { ChatNode, Speaker } from '../../src/types/chat';
 export interface CachedChat {
   id: string;
   name: string;
+  characterIds: string[];
+  personaId: string | null;
+  tags: string[];
   nodes: Map<string, ChatNode>;
   rootId: string | null;
   tailId: string | null;

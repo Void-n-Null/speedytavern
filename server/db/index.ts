@@ -36,6 +36,9 @@ export function initDb(): Database {
     CREATE TABLE IF NOT EXISTS chats (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      character_ids TEXT NOT NULL DEFAULT '[]',
+      persona_id TEXT,
+      tags TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
@@ -107,9 +110,22 @@ export function initDb(): Database {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_profile_ai_configs_profile ON profile_ai_configs(profile_id)');
   
-  // ============ Database Migrations (Local-first style) ============
-  
-  // 1. Ensure 'active_ai_config_id' exists in profiles
+  // 1. Ensure columns exist in chats
+  const chatCols = db.query("PRAGMA table_info(chats)").all() as any[];
+  const requiredChatCols = [
+    { name: 'character_ids', type: 'TEXT', default: "'[]'" },
+    { name: 'persona_id', type: 'TEXT' },
+    { name: 'tags', type: 'TEXT', default: "'[]'" }
+  ];
+  for (const col of requiredChatCols) {
+    if (!chatCols.some(c => c.name === col.name)) {
+      const def = col.default ? ` DEFAULT ${col.default}` : '';
+      db.run(`ALTER TABLE chats ADD COLUMN ${col.name} ${col.type}${def}`);
+      console.log(`🔧 Added ${col.name} to chats`);
+    }
+  }
+
+  // 2. Ensure 'active_ai_config_id' exists in profiles
   const profileCols = db.query("PRAGMA table_info(profiles)").all() as any[];
   if (!profileCols.some(c => c.name === 'active_ai_config_id')) {
     db.run('ALTER TABLE profiles ADD COLUMN active_ai_config_id TEXT');
@@ -230,6 +246,28 @@ export function initDb(): Database {
       expires_at INTEGER NOT NULL
     )
   `);
+
+  // AI request logs for cost tracking and telemetry
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_request_logs (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL,
+      model_slug TEXT NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      calculated_cost_usd REAL,
+      latency_ms INTEGER,
+      status TEXT NOT NULL,
+      error_message TEXT,
+      request_metadata TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_request_logs_created ON ai_request_logs(created_at)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_request_logs_model ON ai_request_logs(model_slug)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_request_logs_provider ON ai_request_logs(provider_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_request_logs_status ON ai_request_logs(status)');
   
   // Indexes for fast lookups
   db.run('CREATE INDEX IF NOT EXISTS idx_nodes_chat ON chat_nodes(chat_id)');
