@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { ChatComposer, MessageList } from './components/chat';
 import { AppToolbar } from './components/AppToolbar';
-import { DesignConfigModal } from './components/design-config/DesignConfigModal';
+import { SettingsModal } from './components/settings/SettingsModal';
 import { useServerChatStatus } from './hooks/queries';
 import { usePageBackgroundConfig, useTypographyConfig } from './hooks/queries/useProfiles';
 import { useCustomFontLoader } from './hooks/queries/useFonts';
+import { useSetting } from './hooks/queries/useSettings';
 import { StreamingDebugPanel } from './components/streaming/StreamingDebugPanel';
 import { AiConnectionDebugPanel } from './components/ai/AiConnectionDebugPanel';
 import { ToastContainer } from './components/ui/toast';
@@ -20,6 +21,9 @@ export function App() {
   const pageBackground = usePageBackgroundConfig();
   const typography = useTypographyConfig();
   
+  const { data: debugStreaming } = useSetting<boolean>('debug.streaming');
+  const { data: debugAi } = useSetting<boolean>('debug.ai');
+
   // Load custom font if selected
   useCustomFontLoader(typography.customFontId, typography.fontFamily);
 
@@ -63,10 +67,10 @@ export function App() {
 
       <ChatComposer />
 
-      <DesignConfigModal open={showSettings} onOpenChange={setShowSettings} />
+      <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
 
-      {import.meta.env.DEV ? <StreamingDebugPanel /> : null}
-      {import.meta.env.DEV ? <AiConnectionDebugPanel /> : null}
+      {debugStreaming ? <StreamingDebugPanel /> : null}
+      {debugAi ? <AiConnectionDebugPanel /> : null}
       <ToastContainer />
     </div>
   );
