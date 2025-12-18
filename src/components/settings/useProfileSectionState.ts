@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { toast } from '../ui/toast';
 import { useSettingsModalState } from '../../store/settingsModalState';
 import { defaultMessageStyleConfig } from '../../types/messageStyle';
@@ -19,10 +19,6 @@ import {
 } from '../../hooks/queries/useDesignTemplates';
 
 export function useProfileSectionState() {
-  const [newName, setNewName] = useState('');
-  const [templateName, setTemplateName] = useState('');
-  const [editingName, setEditingName] = useState(false);
-  const [editNameValue, setEditNameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const showConfirm = useSettingsModalState(s => s.showConfirm);
   
@@ -36,13 +32,12 @@ export function useProfileSectionState() {
   const createTemplate = useCreateTemplate();
   const deleteTemplate = useDeleteTemplate();
 
-  const handleCreateProfile = () => {
-    if (!newName.trim()) return;
+  const handleCreateProfile = (name: string) => {
+    if (!name.trim()) return;
     createProfile.mutate(
-      { name: newName.trim(), messageStyle: defaultMessageStyleConfig },
-      { onSuccess: () => toast.success(`Profile "${newName}" created`) }
+      { name: name.trim(), messageStyle: defaultMessageStyleConfig },
+      { onSuccess: () => toast.success(`Profile "${name}" created`) }
     );
-    setNewName('');
   };
 
   const handleDuplicateProfile = () => {
@@ -54,24 +49,22 @@ export function useProfileSectionState() {
     );
   };
 
-  const handleRenameProfile = () => {
-    if (!profile || !editNameValue.trim()) return;
+  const handleRenameProfile = (id: string, name: string) => {
+    if (!name.trim()) return;
     updateProfile.mutate(
-      { id: profile.id, data: { name: editNameValue.trim() } },
+      { id, data: { name: name.trim() } },
       { onSuccess: () => {
         toast.success('Profile renamed');
-        setEditingName(false);
       }}
     );
   };
 
-  const handleSaveAsTemplate = () => {
-    if (!templateName.trim() || !config) return;
+  const handleSaveAsTemplate = (name: string) => {
+    if (!name.trim() || !config) return;
     createTemplate.mutate(
-      { name: templateName.trim(), config: config as unknown as Record<string, unknown> },
-      { onSuccess: () => toast.success(`Template "${templateName}" saved`) }
+      { name: name.trim(), config: config as unknown as Record<string, unknown> },
+      { onSuccess: () => toast.success(`Template "${name}" saved`) }
     );
-    setTemplateName('');
   };
 
   const handleLoadTemplate = (templateId: string) => {
@@ -140,10 +133,6 @@ export function useProfileSectionState() {
   };
 
   return {
-    newName, setNewName,
-    templateName, setTemplateName,
-    editingName, setEditingName,
-    editNameValue, setEditNameValue,
     fileInputRef,
     profiles, templates,
     profile, config,
@@ -158,6 +147,7 @@ export function useProfileSectionState() {
     handleDeleteTemplate,
     handleResetConfig,
     activateProfile,
+    updateConfig,
   };
 }
 
