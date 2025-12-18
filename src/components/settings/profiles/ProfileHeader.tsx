@@ -18,7 +18,7 @@ import {
 } from '../../ui/dropdown-menu';
 import { Card } from '../GroupRenderer';
 import { cn } from '../../../lib/utils';
-import { Profile, ProfileMeta } from '../../../types/profile';
+import type { Profile, ProfileMeta } from '../../../types/profile';
 
 interface ProfileHeaderProps {
   profiles: ProfileMeta[] | undefined;
