@@ -54,4 +54,20 @@ export const queryKeys = {
     all: ['aiProviders'] as const,
     list: () => [...queryKeys.aiProviders.all, 'list'] as const,
   },
+
+  // OpenRouter models catalog
+  openRouterModels: {
+    all: ['openRouterModels'] as const,
+    list: () => [...queryKeys.openRouterModels.all, 'list'] as const,
+  },
+
+  // AI request logs
+  aiRequestLogs: {
+    all: ['aiRequestLogs'] as const,
+    list: (filters?: Record<string, unknown>) => [...queryKeys.aiRequestLogs.all, 'list', filters] as const,
+    summary: (filters?: Record<string, unknown>) => [...queryKeys.aiRequestLogs.all, 'summary', filters] as const,
+    byModel: (filters?: Record<string, unknown>) => [...queryKeys.aiRequestLogs.all, 'byModel', filters] as const,
+    trend: (filters?: Record<string, unknown>) => [...queryKeys.aiRequestLogs.all, 'trend', filters] as const,
+    errors: (filters?: Record<string, unknown>) => [...queryKeys.aiRequestLogs.all, 'errors', filters] as const,
+  },
 };
