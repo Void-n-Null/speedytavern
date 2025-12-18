@@ -9,6 +9,7 @@ import { Card, MetricRow } from './DetailBlocks';
 import type { OpenAIEncodingName } from '../../../utils/tiktoken';
 import { parseExampleMessages } from '../../../utils/exampleMessages';
 import { countOpenAiTokensManyOffThread } from '../../../utils/tiktokenWorkerClient';
+import { calculateApproxTokens } from '../editor/utils';
 
 export type DetailInsightInput = {
   name: string;
@@ -46,7 +47,7 @@ export function CharacterDetailInsights({
 
   // Approximate tokens while loading
   const approxTokens = useMemo(() => {
-    const totalChars = [
+    return calculateApproxTokens([
       input.description,
       input.personality,
       input.scenario,
@@ -56,8 +57,7 @@ export function CharacterDetailInsights({
       input.systemPrompt,
       input.postHistoryInstructions,
       input.creatorNotes,
-    ].reduce((a, s) => a + (s || '').length, 0);
-    return Math.max(0, Math.round(totalChars / 4));
+    ]);
   }, [
     input.alternateGreetings,
     input.creatorNotes,
