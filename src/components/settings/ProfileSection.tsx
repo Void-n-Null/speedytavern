@@ -1,19 +1,33 @@
-import { Plus, Trash2, RotateCcw, Upload, Save, FileDown, Check, X, Pencil, Copy } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { 
+  Plus, 
+  Trash2, 
+  RotateCcw, 
+  Upload, 
+  FileDown, 
+  Pencil, 
+  Copy, 
+  ChevronDown,
+  Layout,
+  History,
+  Check,
+  X
+} from 'lucide-react';
 import { Button } from '../ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { toast } from '../ui/toast';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '../ui/dropdown-menu';
 import { Card } from './GroupRenderer';
-import { ControlRow } from './controls';
-import { useIsMobile } from '../../hooks/useIsMobile';
 import { useProfileSectionState } from './useProfileSectionState';
+import { cn } from '../../lib/utils';
 
 export function ProfileSection() {
-  const isMobile = useIsMobile();
   const {
-    newName, setNewName,
-    templateName, setTemplateName,
-    editingName, setEditingName,
-    editNameValue, setEditNameValue,
     fileInputRef,
     profiles, templates,
     profile,
@@ -30,195 +44,336 @@ export function ProfileSection() {
     activateProfile,
   } = useProfileSectionState();
 
+  // Local UI states to replace modals
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
+  const [profileTempName, setProfileTempName] = useState('');
+  const [templateTempName, setTemplateTempName] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const templateInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync profileTempName with profile name for inline editing
+  useEffect(() => {
+    if (profile && !isCreatingProfile) {
+      setProfileTempName(profile.name);
+    }
+  }, [profile, isCreatingProfile]);
+
+  const onCommitRename = () => {
+    if (!profile || !profileTempName.trim() || profileTempName === profile.name) {
+      if (profile) setProfileTempName(profile.name);
+      return;
+    }
+    handleRenameProfile(profile.id, profileTempName.trim());
+  };
+
+  const onCommitCreateProfile = () => {
+    if (!profileTempName.trim()) {
+      setIsCreatingProfile(false);
+      if (profile) setProfileTempName(profile.name);
+      return;
+    }
+    handleCreateProfile(profileTempName.trim());
+    setIsCreatingProfile(false);
+  };
+
+  const onCommitCreateTemplate = () => {
+    if (!templateTempName.trim()) {
+      setIsCreatingTemplate(false);
+      return;
+    }
+    handleSaveAsTemplate(templateTempName.trim());
+    setIsCreatingTemplate(false);
+    setTemplateTempName('');
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Active Profile */}
-      <Card>
-        <div className="flex items-center justify-between gap-4 py-2.5">
-          <div className="min-w-0">
-            <div className="text-sm text-zinc-300">Active Profile</div>
-            <div className="text-xs text-zinc-500 mt-0.5">Switch between saved configurations</div>
+    <div className="space-y-6">
+      {/* Active Profile Header / Creation Zone */}
+      <Card className="p-0 overflow-hidden border-zinc-700/50 bg-zinc-900/60 transition-all">
+        <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded transition-colors",
+                isCreatingProfile 
+                  ? "text-emerald-400 bg-emerald-400/10" 
+                  : "text-violet-400 bg-violet-400/10"
+              )}>
+                {isCreatingProfile ? 'New Profile' : 'Active Profile'}
+              </span>
+            </div>
+            
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={profileTempName}
+              onChange={(e) => setProfileTempName(e.target.value)}
+              onBlur={() => {
+                if (isCreatingProfile) onCommitCreateProfile();
+                else onCommitRename();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (isCreatingProfile) onCommitCreateProfile();
+                  else onCommitRename();
+                  titleInputRef.current?.blur();
+                }
+                if (e.key === 'Escape') {
+                  setIsCreatingProfile(false);
+                  if (profile) setProfileTempName(profile.name);
+                  titleInputRef.current?.blur();
+                }
+              }}
+              placeholder={isCreatingProfile ? "Enter profile name..." : "Profile name"}
+              className={cn(
+                "w-full bg-transparent border-none p-0 text-xl font-bold tracking-tight focus:ring-0 focus:outline-none placeholder:text-zinc-700 transition-colors",
+                isCreatingProfile ? "text-emerald-400" : "text-zinc-100"
+              )}
+            />
           </div>
+
           <div className="flex items-center gap-2">
-            <Select value={profile?.id ?? ''} onValueChange={(id) => {
-              activateProfile.mutate(id);
-              toast.info('Profile switched');
-            }}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        
-        {/* Inline rename */}
-        {profile && (
-          <div className="pt-2 mt-2 border-t border-zinc-800/50">
-            {editingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={editNameValue}
-                  onChange={(e) => setEditNameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRenameProfile();
-                    if (e.key === 'Escape') setEditingName(false);
-                  }}
-                  className="flex-1 h-8 px-2 text-sm rounded bg-zinc-800 border border-zinc-700 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleRenameProfile} className="h-8 px-2">
-                  <Check className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditingName(false)} className="h-8 px-2">
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+            {!isCreatingProfile ? (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="bg-zinc-800/50 border-zinc-700 gap-2">
+                      Switch <ChevronDown className="h-4 w-4 text-zinc-500" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Saved Profiles</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {profiles?.map((p) => (
+                      <DropdownMenuItem 
+                        key={p.id} 
+                        onClick={() => activateProfile.mutate(p.id)}
+                        className={cn(
+                          "flex items-center justify-between gap-2",
+                          p.id === profile?.id && "bg-zinc-800 text-violet-400 font-medium"
+                        )}
+                      >
+                        {p.name}
+                        {p.id === profile?.id && <div className="h-1.5 w-1.5 rounded-full bg-violet-400" />}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => {
+                        setIsCreatingProfile(true);
+                        setProfileTempName('');
+                        setTimeout(() => titleInputRef.current?.focus(), 0);
+                      }} 
+                      className="text-emerald-400 focus:text-emerald-400"
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Create New
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <div className="h-8 w-px bg-zinc-800 mx-1 hidden sm:block" />
+
+                <div className="flex items-center gap-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => titleInputRef.current?.focus()}
+                    title="Rename profile"
+                    className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-100 shrink-0"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleDuplicateProfile}
+                    title="Duplicate profile"
+                    className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-100 shrink-0"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleDeleteProfile}
+                    disabled={!profiles || profiles.length <= 1}
+                    title="Delete profile"
+                    className="h-9 w-9 p-0 text-zinc-400 hover:text-red-400 shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
             ) : (
-              <div className="flex items-center gap-2">
-                <button
+              <div className="flex items-center gap-1">
+                <Button 
+                  size="sm" 
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 shrink-0"
+                  onClick={onCommitCreateProfile}
+                >
+                  <Check className="h-4 w-4" /> Save Profile
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
                   onClick={() => {
-                    setEditNameValue(profile.name);
-                    setEditingName(true);
+                    setIsCreatingProfile(false);
+                    if (profile) setProfileTempName(profile.name);
                   }}
-                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="text-zinc-500 hover:text-zinc-300 shrink-0"
                 >
-                  <Pencil className="h-3 w-3" />
-                  Rename
-                </button>
-                <button
-                  onClick={handleDuplicateProfile}
-                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                  <Copy className="h-3 w-3" />
-                  Duplicate
-                </button>
+                  Cancel
+                </Button>
               </div>
             )}
           </div>
-        )}
-      </Card>
-
-      {/* Create New Profile */}
-      <Card>
-        <div className="text-sm font-medium text-zinc-300 mb-3">Create New Profile</div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateProfile()}
-            placeholder="Profile name..."
-            className="flex-1 h-9 px-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
-          />
-          <Button onClick={handleCreateProfile} disabled={!newName.trim()} size="sm">
-            <Plus className="h-4 w-4" />
-          </Button>
         </div>
       </Card>
 
-      {/* Design Templates */}
-      <Card>
-        <div className="text-sm font-medium text-zinc-300 mb-3">Design Templates</div>
-        
-        {/* Save as Template */}
-        <div className="flex gap-2 mb-3">
-          <input
-            type="text"
-            value={templateName}
-            onChange={(e) => setTemplateName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSaveAsTemplate()}
-            placeholder="Save current as template..."
-            className="flex-1 h-9 px-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
-          />
-          <Button onClick={handleSaveAsTemplate} disabled={!templateName.trim()} size="sm">
-            <Save className="h-4 w-4" />
-          </Button>
-        </div>
-        
-        {/* Load Template */}
-        {templates && templates.length > 0 && (
-          <div className="mb-3">
-            <ControlRow label="Load Template" description="Apply a saved template" isMobile={isMobile}>
-              <Select onValueChange={handleLoadTemplate}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </ControlRow>
+      {/* Template Gallery */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex flex-1 items-center gap-2">
+            <Layout className="h-4 w-4 text-zinc-500" />
+            {isCreatingTemplate ? (
+              <div className="flex flex-1 items-center gap-2">
+                <input
+                  ref={templateInputRef}
+                  type="text"
+                  value={templateTempName}
+                  onChange={(e) => setTemplateTempName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onCommitCreateTemplate();
+                    if (e.key === 'Escape') {
+                      setIsCreatingTemplate(false);
+                      setTemplateTempName('');
+                    }
+                  }}
+                  placeholder="Template name..."
+                  autoFocus
+                  className="flex-1 bg-zinc-800/50 border border-zinc-700 rounded px-2 py-0.5 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+                <Button size="sm" onClick={onCommitCreateTemplate} className="h-7 px-2 shrink-0">
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setIsCreatingTemplate(false);
+                    setTemplateTempName('');
+                  }} 
+                  className="h-7 w-7 p-0 shrink-0"
+                >
+                  <X className="h-3.5 w-3.5 shrink-0 min-w-3.5 min-h-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Design Templates</h3>
+            )}
           </div>
-        )}
-
-        {/* Export/Import */}
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportConfig} className="flex-1">
-            <FileDown className="h-3.5 w-3.5 mr-1.5" /> Export
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex-1">
-            <Upload className="h-3.5 w-3.5 mr-1.5" /> Import
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleImportConfig}
-            className="hidden"
-          />
-        </div>
-        
-        {/* Template List with Delete */}
-        {templates && templates.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-zinc-800/50">
-            <div className="text-xs text-zinc-500 mb-2">Saved Templates</div>
-            <div className="space-y-1">
-              {templates.map((t) => (
-                <div key={t.id} className="flex items-center justify-between py-1 group">
-                  <span className="text-sm text-zinc-300">{t.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteTemplate(t.id, t.name)}
-                    className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* Profile Actions */}
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={handleResetConfig} size="sm" className="flex-1">
-          <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reset
-        </Button>
-        <div className="relative flex-1 group/delete">
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDeleteProfile}
-            disabled={!profiles || profiles.length <= 1}
-            className="w-full"
-          >
-            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
-          </Button>
-          {profiles && profiles.length <= 1 && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-xs text-zinc-300 rounded whitespace-nowrap opacity-0 group-hover/delete:opacity-100 transition-opacity pointer-events-none">
-              Can't delete the last profile
-            </div>
+          
+          {!isCreatingTemplate && (
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={() => {
+                setIsCreatingTemplate(true);
+                setTemplateTempName('');
+                setTimeout(() => templateInputRef.current?.focus(), 0);
+              }}
+              className="h-8 text-xs text-violet-400 hover:text-violet-300 hover:bg-violet-400/5 gap-1.5 shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" /> Save Current
+            </Button>
           )}
+        </div>
+
+        {templates && templates.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {templates.map((t) => (
+              <Card key={t.id} className="group p-3 hover:border-zinc-600 transition-colors bg-zinc-900/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="text-sm font-medium text-zinc-200 truncate">{t.name}</div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                      <History className="h-3 w-3" />
+                      {new Date(t.updatedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      onClick={() => handleLoadTemplate(t.id)}
+                      className="h-7 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-700 border-zinc-700"
+                    >
+                      Apply
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => handleDeleteTemplate(t.id, t.name)}
+                      className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 px-4 rounded-xl border border-dashed border-zinc-800 bg-zinc-900/20 text-center">
+            <div className="h-10 w-10 rounded-full bg-zinc-800/50 flex items-center justify-center mb-3">
+              <Layout className="h-5 w-5 text-zinc-600" />
+            </div>
+            <div className="text-sm font-medium text-zinc-400">No templates yet</div>
+            <div className="text-xs text-zinc-500 mt-1 max-w-[200px]">Save your current design to reuse it across different profiles.</div>
+          </div>
+        )}
+      </div>
+
+      {/* Utility Bar */}
+      <div className="pt-4 border-t border-zinc-800">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleExportConfig}
+              className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors group"
+            >
+              <div className="h-7 w-7 rounded bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-800 transition-colors">
+                <FileDown className="h-3.5 w-3.5" />
+              </div>
+              Export Config
+            </button>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors group"
+            >
+              <div className="h-7 w-7 rounded bg-zinc-800/50 flex items-center justify-center group-hover:bg-zinc-800 transition-colors">
+                <Upload className="h-3.5 w-3.5" />
+              </div>
+              Import Config
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImportConfig}
+              className="hidden"
+            />
+          </div>
+
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleResetConfig}
+            className="h-8 text-xs text-zinc-500 hover:text-red-400 gap-1.5"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Reset to Default
+          </Button>
         </div>
       </div>
     </div>
