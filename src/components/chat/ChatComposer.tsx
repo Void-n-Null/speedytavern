@@ -6,6 +6,10 @@ import { showToast } from '../ui/toast';
 import { useServerChat } from '../../hooks/queries';
 import { useComposerConfig, useLayoutConfig } from '../../hooks/queries/useProfiles';
 import { useChatComposerDraft, useChatComposerStore } from '../../store/chatComposerStore';
+import { useChatComposerStyles } from '../../hooks/useChatComposerStyles';
+import { useChatComposerEvents } from '../../hooks/useChatComposerEvents';
+import { useTextareaHeight } from '../../hooks/useTextareaHeight';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 export function ChatComposer() {
   const layout = useLayoutConfig();
@@ -20,24 +24,8 @@ export function ChatComposer() {
 
   const value = draft.text;
   const [isFocused, setIsFocused] = useState(false);
-
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Keep latest chat data in refs so event handlers can read it without forcing derived work on every render.
-  const tailIdRef = useRef<string | null>(tailId);
-  const nodesRef = useRef(nodes);
-  const speakersRef = useRef(speakers);
-  tailIdRef.current = tailId;
-  nodesRef.current = nodes;
-  speakersRef.current = speakers;
-
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  const isMobile = useIsMobile();
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
@@ -49,38 +37,18 @@ export function ChatComposer() {
     return user?.id ?? Array.from(speakers.values())[0]?.id ?? null;
   }, [speakers]);
 
-  const getLastUserMessage = useCallback((): string | null => {
-    const currentTailId = tailIdRef.current;
-    if (!currentTailId) return null;
-
-    const nodesMap = nodesRef.current;
-    const speakersMap = speakersRef.current;
-
-    let currentId: string | null = currentTailId;
-    while (currentId) {
-      const node = nodesMap.get(currentId);
-      if (!node) break;
-      const sp = speakersMap.get(node.speaker_id);
-      if (sp?.is_user && node.message.trim()) return node.message;
-      currentId = node.parent_id;
-    }
-
-    return null;
-  }, []);
-
+  const { getLastUserMessage } = useChatComposerEvents(nodes, speakers, tailId);
+  const { syncHeight: syncTextareaHeight } = useTextareaHeight(textareaRef, value);
+  
   const isEmpty = !value.trim();
-
-  const syncTextareaHeight = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = '0px';
-    const next = Math.min(240, Math.max(44, el.scrollHeight));
-    el.style.height = `${next}px`;
-  }, []);
-
-  useEffect(() => {
-    syncTextareaHeight();
-  }, [value, syncTextareaHeight]);
+  const { containerWidthStyle, surfaceStyle, sendButtonStyle } = useChatComposerStyles(
+    composer,
+    layout,
+    isFocused,
+    isMobile,
+    isEmpty,
+    isAddingMessage
+  );
 
   const send = useCallback(async () => {
     const content = value.trim();
@@ -108,6 +76,7 @@ export function ChatComposer() {
     }
   }, [addMessage, clear, syncTextareaHeight, tailId, userSpeakerId, value]);
 
+  // Sync selection from store to DOM
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -122,67 +91,84 @@ export function ChatComposer() {
     }
   }, [draft.selectionEnd, draft.selectionStart, draft.text]);
 
-  const containerWidthStyle = useMemo(() => {
-    return {
-      width: isMobile ? '100%' : `${layout.containerWidth + 5}%`,
-      margin: '0 auto',
-    };
-  }, [isMobile, layout.containerWidth]);
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
 
-  const applyOpacityToColor = useCallback((color: string | undefined, opacity: number): string => {
-    if (!color) return `rgba(0, 0, 0, ${opacity})`;
-    if (color.startsWith('rgba')) {
-      return color.replace(/[\d.]+\)$/, `${opacity})`);
-    }
-    if (color.startsWith('rgb(')) {
-      return color.replace('rgb(', 'rgba(').replace(')', `, ${opacity})`);
-    }
-    if (color.startsWith('#')) {
-      const hex = color.slice(1);
-      const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
-      const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
-      const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
-      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    }
-    return color;
-  }, []);
+    if (mod && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        const entry = redo();
+        if (!entry) return;
+        requestAnimationFrame(() => {
+          const el = textareaRef.current;
+          if (!el) return;
+          el.focus();
+          el.setSelectionRange(entry.selectionStart, entry.selectionEnd);
+          syncTextareaHeight();
+        });
+        return;
+      }
 
-  const surfaceStyle = useMemo(() => {
-    const bgOpacity = (isFocused ? composer.backgroundOpacityFocused : composer.backgroundOpacity) / 100;
-    const borderOpacity = (isFocused ? composer.borderOpacityFocused : composer.borderOpacity) / 100;
-
-    const style: React.CSSProperties = {
-      borderWidth: `${composer.borderWidthPx}px`,
-      borderColor: applyOpacityToColor(composer.borderColor, borderOpacity),
-      backgroundColor: applyOpacityToColor(composer.backgroundColor, bgOpacity),
-      borderRadius: `${composer.radiusPx}px`,
-      boxShadow: composer.shadowEnabled ? composer.shadowCss : 'none',
-    };
-
-    if (composer.backdropBlurPx > 0) {
-      style.backdropFilter = `blur(${composer.backdropBlurPx}px)`;
-      (style as any).WebkitBackdropFilter = `blur(${composer.backdropBlurPx}px)`;
+      const entry = undo();
+      if (!entry) return;
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(entry.selectionStart, entry.selectionEnd);
+        syncTextareaHeight();
+      });
+      return;
     }
 
-    return style;
-  }, [applyOpacityToColor, composer, isFocused]);
+    if (mod && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      const entry = redo();
+      if (!entry) return;
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(entry.selectionStart, entry.selectionEnd);
+        syncTextareaHeight();
+      });
+      return;
+    }
 
-  const sendButtonStyle = useMemo(() => {
-    const disabled = isAddingMessage || isEmpty;
+    if (e.key === 'Escape') {
+      if (value) {
+        e.preventDefault();
+        clear();
+        requestAnimationFrame(() => {
+          syncTextareaHeight();
+        });
+      }
+      return;
+    }
 
-    const bgOpacity = (disabled ? composer.sendButtonBackgroundOpacityDisabled : composer.sendButtonBackgroundOpacity) / 100;
-    const borderOpacity = (disabled ? composer.sendButtonBorderOpacityDisabled : composer.sendButtonBorderOpacity) / 100;
-    const textOpacity = (disabled ? composer.sendButtonTextOpacityDisabled : 100) / 100;
+    if (e.key === 'ArrowUp') {
+      const el = e.currentTarget;
+      const isAtStart = el.selectionStart === 0 && el.selectionEnd === 0;
+      const lastUserMessage = getLastUserMessage();
+      if (isAtStart && !value.trim() && lastUserMessage) {
+        e.preventDefault();
+        setDraft(lastUserMessage, lastUserMessage.length, lastUserMessage.length, 'shortcut');
+        requestAnimationFrame(() => {
+          el.setSelectionRange(lastUserMessage.length, lastUserMessage.length);
+          syncTextareaHeight();
+        });
+      }
+      return;
+    }
 
-    return {
-      backgroundColor: applyOpacityToColor(composer.sendButtonBackgroundColor, bgOpacity),
-      borderColor: applyOpacityToColor(composer.sendButtonBorderColor, borderOpacity),
-      borderWidth: `${composer.sendButtonBorderWidthPx}px`,
-      borderStyle: composer.sendButtonBorderWidthPx > 0 ? 'solid' : 'none',
-      borderRadius: `${composer.sendButtonRadiusPx}px`,
-      color: applyOpacityToColor(composer.sendButtonTextColor, textOpacity),
-    } satisfies React.CSSProperties;
-  }, [applyOpacityToColor, composer, isAddingMessage, isEmpty]);
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (isMobile && composer.sendButtonType !== 'hidden') {
+        return;
+      }
+      e.preventDefault();
+      void send();
+    }
+  }, [clear, composer.sendButtonType, getLastUserMessage, isMac, isMobile, redo, send, setDraft, syncTextareaHeight, undo, value]);
 
   return (
     <div className="chat-composer w-full shrink-0 px-2 pb-3 pt-0" aria-label="Chat composer">
@@ -232,84 +218,7 @@ export function ChatComposer() {
                 }}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
-                onKeyDown={(e) => {
-                  const mod = isMac ? e.metaKey : e.ctrlKey;
-
-                  if (mod && (e.key === 'z' || e.key === 'Z')) {
-                    e.preventDefault();
-                    if (e.shiftKey) {
-                      const entry = redo();
-                      if (!entry) return;
-                      requestAnimationFrame(() => {
-                        const el = textareaRef.current;
-                        if (!el) return;
-                        el.focus();
-                        el.setSelectionRange(entry.selectionStart, entry.selectionEnd);
-                        syncTextareaHeight();
-                      });
-                      return;
-                    }
-
-                    const entry = undo();
-                    if (!entry) return;
-                    requestAnimationFrame(() => {
-                      const el = textareaRef.current;
-                      if (!el) return;
-                      el.focus();
-                      el.setSelectionRange(entry.selectionStart, entry.selectionEnd);
-                      syncTextareaHeight();
-                    });
-                    return;
-                  }
-
-                  if (mod && (e.key === 'y' || e.key === 'Y')) {
-                    e.preventDefault();
-                    const entry = redo();
-                    if (!entry) return;
-                    requestAnimationFrame(() => {
-                      const el = textareaRef.current;
-                      if (!el) return;
-                      el.focus();
-                      el.setSelectionRange(entry.selectionStart, entry.selectionEnd);
-                      syncTextareaHeight();
-                    });
-                    return;
-                  }
-
-                  if (e.key === 'Escape') {
-                    if (value) {
-                      e.preventDefault();
-                      clear();
-                      requestAnimationFrame(() => {
-                        syncTextareaHeight();
-                      });
-                    }
-                    return;
-                  }
-
-                  if (e.key === 'ArrowUp') {
-                    const el = e.currentTarget;
-                    const isAtStart = el.selectionStart === 0 && el.selectionEnd === 0;
-                    const lastUserMessage = getLastUserMessage();
-                    if (isAtStart && !value.trim() && lastUserMessage) {
-                      e.preventDefault();
-                      setDraft(lastUserMessage, lastUserMessage.length, lastUserMessage.length, 'shortcut');
-                      requestAnimationFrame(() => {
-                        el.setSelectionRange(lastUserMessage.length, lastUserMessage.length);
-                        syncTextareaHeight();
-                      });
-                    }
-                    return;
-                  }
-
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    if (isMobile && composer.sendButtonType !== 'hidden') {
-                      return;
-                    }
-                    e.preventDefault();
-                    void send();
-                  }
-                }}
+                onKeyDown={handleKeyDown}
                 onSelect={(e) => {
                   const el = e.currentTarget;
                   setDraft(el.value, el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length, 'selection');
