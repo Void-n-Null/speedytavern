@@ -10,9 +10,8 @@ import { useQuery } from '@tanstack/react-query';
 import { FixedSizeList as List } from 'react-window';
 import { 
   Search, Cpu, Brain, ArrowRight, ArrowLeft,
-  DollarSign, Infinity, Check, RefreshCw,
-  Zap, X, Image, FileText, Mic, Video,
-  Sparkles, Clock, TrendingUp
+  DollarSign, Check, RefreshCw,
+  Zap, X, Image, Mic, Video, Sparkles
 } from 'lucide-react';
 import { openRouterModels, aiProviders, type OpenRouterModel } from '../../../api/client';
 import { queryKeys } from '../../../lib/queryClient';
@@ -202,7 +201,6 @@ export function ModelsTab({ isMobile, activeProviderId }: ModelsTabProps) {
           <ActiveModelDashboard 
             model={currentModel} 
             onChangeModel={() => setMode('browse')}
-            isMobile={isMobile}
           />
         ) : selectedModelSlug ? (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8">
@@ -349,12 +347,10 @@ export function ModelsTab({ isMobile, activeProviderId }: ModelsTabProps) {
 
 function ActiveModelDashboard({ 
   model, 
-  onChangeModel,
-  isMobile 
+  onChangeModel
 }: { 
   model: OpenRouterModel; 
   onChangeModel: () => void;
-  isMobile: boolean;
 }) {
   const formatContext = (ctx: number) => {
     if (ctx >= 1_000_000) return `${(ctx / 1_000_000).toFixed(1)}M`;
@@ -376,157 +372,111 @@ function ActiveModelDashboard({
   const isFree = model.endpoint?.is_free;
   const hasReasoning = model.supports_reasoning || model.endpoint?.supports_reasoning;
   const [provider] = model.slug.split('/');
+  const hasVision = model.input_modalities?.includes('image');
+  const hasAudioIn = model.input_modalities?.includes('audio');
+  const hasImageOut = model.output_modalities?.includes('image');
+  const hasAudioOut = model.output_modalities?.includes('audio');
 
   return (
-    <div className="space-y-4 mb-6">
-      {/* Model Identity Card */}
-      <div className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-950/50 overflow-hidden">
-        <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <ProviderLogo provider={provider} size="lg" />
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">{provider}</span>
-                  {isFree && (
-                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
-                      FREE TIER
-                    </span>
-                  )}
-                  {hasReasoning && (
-                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/30 flex items-center gap-1">
-                      <Brain className="h-3 w-3" />
-                      REASONING
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-2xl font-bold text-zinc-100">
-                  {model.short_name || model.name}
-                </h3>
-                <code className="text-xs text-zinc-600 font-mono mt-1 block">
-                  {model.slug}
-                </code>
+    <div className="mb-6">
+      {/* Model Identity - Single cohesive block */}
+      <div className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-950/50 p-6">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-4">
+            <ProviderLogo provider={provider} size="lg" />
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">{provider}</span>
+                {isFree && (
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                    FREE
+                  </span>
+                )}
+                {hasReasoning && (
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                    <Brain className="h-3 w-3" />
+                    REASONING
+                  </span>
+                )}
               </div>
+              <h3 className="text-2xl font-bold text-zinc-100">
+                {model.short_name || model.name}
+              </h3>
+              <code className="text-xs text-zinc-600 font-mono mt-0.5 block">
+                {model.slug}
+              </code>
             </div>
-            <Button
-              variant="outline"
-              onClick={onChangeModel}
-              className="shrink-0 gap-2 border-zinc-700 hover:bg-zinc-800"
-            >
-              Change Model
-              <ArrowRight className="h-4 w-4" />
-            </Button>
           </div>
+          <Button
+            variant="outline"
+            onClick={onChangeModel}
+            className="shrink-0 gap-2 border-zinc-700 hover:bg-zinc-800"
+          >
+            Change Model
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
 
-          {model.description && (
-            <p className="mt-4 text-sm text-zinc-400 leading-relaxed line-clamp-2">
-              {model.description}
-            </p>
+        {model.description && (
+          <p className="text-sm text-zinc-400 leading-relaxed line-clamp-2 mb-5">
+            {model.description}
+          </p>
+        )}
+
+        {/* Stats row - properly scaled and centered */}
+        <div className={cn(
+          "grid py-4 border-t border-zinc-800/60",
+          model.endpoint?.max_completion_tokens ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"
+        )}>
+          <div className="flex flex-col items-center justify-center text-center px-4 py-2">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-0.5">Context</div>
+            <div className="text-lg font-bold text-zinc-100">{formatContext(model.context_length)}</div>
+          </div>
+          <div className="flex flex-col items-center justify-center text-center px-4 py-2 border-l border-zinc-800/60">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-0.5">Input</div>
+            <div className="text-lg font-bold text-zinc-100">{formatPrice(inputPrice)}</div>
+          </div>
+          <div className={cn(
+            "flex flex-col items-center justify-center text-center px-4 py-2 border-zinc-800/60",
+            "border-t sm:border-t-0 sm:border-l",
+            !model.endpoint?.max_completion_tokens && "col-span-2 sm:col-span-1"
+          )}>
+            <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-0.5">Output</div>
+            <div className="text-lg font-bold text-zinc-100">{formatPrice(outputPrice)}</div>
+          </div>
+          {model.endpoint?.max_completion_tokens && (
+            <div className="flex flex-col items-center justify-center text-center px-4 py-2 border-t border-l sm:border-t-0 border-zinc-800/60">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-0.5">Max Output</div>
+              <div className="text-lg font-bold text-zinc-100">{formatContext(model.endpoint.max_completion_tokens)}</div>
+            </div>
           )}
         </div>
-      </div>
 
-      {/* Stats Grid */}
-      <div className={cn(
-        "grid gap-3",
-        isMobile ? "grid-cols-2" : "grid-cols-4"
-      )}>
-        <StatCard
-          icon={<Infinity className="h-5 w-5" />}
-          label="Context Window"
-          value={formatContext(model.context_length)}
-          subtext="tokens"
-          color="violet"
-        />
-        <StatCard
-          icon={<TrendingUp className="h-5 w-5" />}
-          label="Input Cost"
-          value={formatPrice(inputPrice)}
-          subtext="per million tokens"
-          color="blue"
-        />
-        <StatCard
-          icon={<TrendingUp className="h-5 w-5" />}
-          label="Output Cost"
-          value={formatPrice(outputPrice)}
-          subtext="per million tokens"
-          color="emerald"
-        />
-        <StatCard
-          icon={<Clock className="h-5 w-5" />}
-          label="Max Output"
-          value={model.endpoint?.max_completion_tokens ? formatContext(model.endpoint.max_completion_tokens) : '—'}
-          subtext="tokens"
-          color="orange"
-        />
+        {/* Capabilities - inline badges, no wrapper card */}
+        {(hasVision || hasAudioIn || hasImageOut || hasAudioOut || hasReasoning || model.endpoint?.supports_multipart) && (
+          <div className="flex flex-wrap gap-1.5 pt-4 border-t border-zinc-800/60">
+            {hasVision && (
+              <CapabilityBadge icon={<Image className="h-3.5 w-3.5" />} label="Vision" active />
+            )}
+            {hasAudioIn && (
+              <CapabilityBadge icon={<Mic className="h-3.5 w-3.5" />} label="Audio In" active />
+            )}
+            {hasImageOut && (
+              <CapabilityBadge icon={<Image className="h-3.5 w-3.5" />} label="Image Gen" active />
+            )}
+            {hasAudioOut && (
+              <CapabilityBadge icon={<Video className="h-3.5 w-3.5" />} label="Audio Out" active />
+            )}
+            {hasReasoning && (
+              <CapabilityBadge icon={<Brain className="h-3.5 w-3.5" />} label="Reasoning" active />
+            )}
+            {model.endpoint?.supports_multipart && (
+              <CapabilityBadge icon={<Sparkles className="h-3.5 w-3.5" />} label="Multipart" />
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Capabilities Grid */}
-      <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-4">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">Capabilities</h4>
-        <div className="flex flex-wrap gap-2">
-          {model.input_modalities?.includes('text') && (
-            <CapabilityBadge icon={<FileText className="h-3.5 w-3.5" />} label="Text Input" />
-          )}
-          {model.input_modalities?.includes('image') && (
-            <CapabilityBadge icon={<Image className="h-3.5 w-3.5" />} label="Vision" active />
-          )}
-          {model.input_modalities?.includes('audio') && (
-            <CapabilityBadge icon={<Mic className="h-3.5 w-3.5" />} label="Audio Input" active />
-          )}
-          {model.output_modalities?.includes('text') && (
-            <CapabilityBadge icon={<FileText className="h-3.5 w-3.5" />} label="Text Output" />
-          )}
-          {model.output_modalities?.includes('image') && (
-            <CapabilityBadge icon={<Image className="h-3.5 w-3.5" />} label="Image Gen" active />
-          )}
-          {model.output_modalities?.includes('audio') && (
-            <CapabilityBadge icon={<Video className="h-3.5 w-3.5" />} label="Audio Out" active />
-          )}
-          {hasReasoning && (
-            <CapabilityBadge icon={<Brain className="h-3.5 w-3.5" />} label="Reasoning" active />
-          )}
-          {model.endpoint?.supports_multipart && (
-            <CapabilityBadge icon={<Sparkles className="h-3.5 w-3.5" />} label="Multipart" />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============ Stat Card ============
-
-function StatCard({ 
-  icon, 
-  label, 
-  value, 
-  subtext,
-  color 
-}: { 
-  icon: React.ReactNode; 
-  label: string; 
-  value: string;
-  subtext: string;
-  color: 'violet' | 'blue' | 'emerald' | 'orange';
-}) {
-  const colorStyles = {
-    violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
-    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  };
-
-  return (
-    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-4">
-      <div className={cn('inline-flex p-2 rounded-lg border mb-3', colorStyles[color])}>
-        {icon}
-      </div>
-      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
-        {label}
-      </div>
-      <div className="text-xl font-bold text-zinc-100">{value}</div>
-      <div className="text-[10px] text-zinc-600">{subtext}</div>
     </div>
   );
 }
@@ -555,7 +505,7 @@ function CapabilityBadge({
   );
 }
 
-// ============ Recent Models Grid ============
+// ============ Recent Models ============
 
 function RecentModelsGrid({ 
   onSelect, 
@@ -593,22 +543,24 @@ function RecentModelsGrid({
 
   return (
     <div className="mt-6">
-      <h4 className="text-sm font-bold text-zinc-400 mb-3">Recently Used</h4>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      <h4 className="text-xs font-medium uppercase tracking-wider text-zinc-500 mb-2">Recently Used</h4>
+      <div className="flex flex-wrap gap-2">
         {recentModels.map((model) => {
           const [provider] = model.slug.split('/');
           return (
             <button
               key={model.slug}
               onClick={() => onSelect(model.slug)}
-              className="rounded-xl border border-zinc-800/60 bg-zinc-900/20 p-3 text-left hover:bg-zinc-900/50 hover:border-zinc-700 transition-all group"
+              className="inline-flex items-center gap-2 rounded-lg bg-zinc-900/40 hover:bg-zinc-800/60 px-3 py-2 text-left transition-colors group"
             >
-              <ProviderLogo provider={provider} size="sm" className="mb-2" />
-              <div className="text-xs text-zinc-300 font-medium truncate group-hover:text-zinc-100">
-                {('short_name' in model && model.short_name) || model.name}
-              </div>
-              <div className="text-[10px] text-zinc-600 truncate">
-                {provider}
+              <ProviderLogo provider={provider} size="sm" />
+              <div className="min-w-0">
+                <div className="text-xs text-zinc-300 font-medium truncate group-hover:text-zinc-100">
+                  {('short_name' in model && model.short_name) || model.name}
+                </div>
+                <div className="text-[10px] text-zinc-600 truncate">
+                  {provider}
+                </div>
               </div>
             </button>
           );
@@ -815,9 +767,9 @@ function ProviderLogo({
   selected?: boolean;
 }) {
   const sizeClasses = {
-    sm: 'h-8 w-8 p-1.5',
+    sm: 'h-6 w-6 p-1',
     md: 'h-11 w-11 p-2',
-    lg: 'h-16 w-16 p-3',
+    lg: 'h-14 w-14 p-2.5',
   };
 
   const logoUrl = getProviderLogo(provider);
