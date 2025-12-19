@@ -21,13 +21,13 @@ interface ModelComparisonProps {
 }
 
 const comparisonFields = [
-  { key: 'contextLength', label: 'Context Length', format: formatContext },
-  { key: 'pricing.prompt', label: 'Input Price (/M)', format: (v: number | undefined) => formatPrice(v ?? 0) },
-  { key: 'pricing.completion', label: 'Output Price (/M)', format: (v: number | undefined) => formatPrice(v ?? 0) },
-  { key: 'isFree', label: 'Free Tier', format: formatBoolean },
-  { key: 'supportsReasoning', label: 'Reasoning', format: formatBoolean },
-  { key: 'inputModalities', label: 'Input Types', format: formatModalities },
-  { key: 'outputModalities', label: 'Output Types', format: formatModalities },
+  { key: 'context_length', label: 'Context Length', format: formatContext },
+  { key: 'endpoint.pricing.prompt', label: 'Input Price (/M)', format: (v: number | undefined) => formatPrice(v ?? 0) },
+  { key: 'endpoint.pricing.completion', label: 'Output Price (/M)', format: (v: number | undefined) => formatPrice(v ?? 0) },
+  { key: 'endpoint.is_free', label: 'Free Tier', format: formatBoolean },
+  { key: 'supports_reasoning', label: 'Reasoning', format: formatBoolean },
+  { key: 'input_modalities', label: 'Input Types', format: formatModalities },
+  { key: 'output_modalities', label: 'Output Types', format: formatModalities },
   { key: 'author', label: 'Author', format: (v: string) => v || '—' },
   { key: 'group', label: 'Model Family', format: (v: string) => v || '—' },
 ] as const;
@@ -38,9 +38,10 @@ function formatContext(ctx: number): string {
   return String(ctx);
 }
 
-function formatPrice(price: number): string {
-  if (price === 0) return 'Free';
-  const perMillion = price * 1_000_000;
+function formatPrice(price: any): string {
+  const p = typeof price === 'string' ? parseFloat(price) : price;
+  if (p === 0 || isNaN(p)) return 'Free';
+  const perMillion = p * 1_000_000;
   if (perMillion < 0.01) return `$${perMillion.toFixed(4)}`;
   return `$${perMillion.toFixed(2)}`;
 }
@@ -87,25 +88,25 @@ export function ModelComparison({ models, onRemoveModel, onClose, isMobile }: Mo
     const best: Record<string, string> = {};
 
     // Lowest input price (excluding 0 which means free)
-    const inputPrices = models.map(m => m.pricing?.prompt ?? 0).filter(p => p > 0);
+    const inputPrices = models.map(m => parseFloat(m.endpoint?.pricing?.prompt || '0')).filter(p => p > 0);
     if (inputPrices.length > 0) {
       const min = Math.min(...inputPrices);
-      const bestModel = models.find(m => (m.pricing?.prompt ?? 0) === min);
-      if (bestModel) best['pricing.prompt'] = bestModel.id;
+      const bestModel = models.find(m => parseFloat(m.endpoint?.pricing?.prompt || '0') === min);
+      if (bestModel) best['endpoint.pricing.prompt'] = bestModel.slug;
     }
 
     // Lowest output price
-    const outputPrices = models.map(m => m.pricing?.completion ?? 0).filter(p => p > 0);
+    const outputPrices = models.map(m => parseFloat(m.endpoint?.pricing?.completion || '0')).filter(p => p > 0);
     if (outputPrices.length > 0) {
       const min = Math.min(...outputPrices);
-      const bestModel = models.find(m => (m.pricing?.completion ?? 0) === min);
-      if (bestModel) best['pricing.completion'] = bestModel.id;
+      const bestModel = models.find(m => parseFloat(m.endpoint?.pricing?.completion || '0') === min);
+      if (bestModel) best['endpoint.pricing.completion'] = bestModel.slug;
     }
 
     // Highest context
-    const maxCtx = Math.max(...models.map(m => m.contextLength ?? 0));
-    const ctxModel = models.find(m => m.contextLength === maxCtx);
-    if (ctxModel) best['contextLength'] = ctxModel.id;
+    const maxCtx = Math.max(...models.map(m => m.context_length ?? 0));
+    const ctxModel = models.find(m => m.context_length === maxCtx);
+    if (ctxModel) best['context_length'] = ctxModel.slug;
 
     return best;
   }, [models]);
@@ -138,23 +139,23 @@ export function ModelComparison({ models, onRemoveModel, onClose, isMobile }: Mo
                   Attribute
                 </th>
                 {models.map(model => (
-                  <th key={model.id} className="p-3 text-center min-w-[150px]">
+                  <th key={model.slug} className="p-3 text-center min-w-[150px]">
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex items-center gap-2">
-                        {model.providerIconUrl && (
-                          <img src={model.providerIconUrl} alt="" className="h-5 w-5" />
+                        {model.endpoint?.provider_display_name && (
+                           <div className="text-[10px] font-bold uppercase">{model.endpoint.provider_display_name.slice(0, 2)}</div>
                         )}
                         <span className="font-semibold text-zinc-100 text-sm">
-                          {model.shortName}
+                          {model.short_name || model.name}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {model.isFree && (
+                        {model.endpoint?.is_free && (
                           <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
                             Free
                           </span>
                         )}
-                        {model.supportsReasoning && (
+                        {(model.supports_reasoning || model.endpoint?.supports_reasoning) && (
                           <span className="rounded-full bg-amber-500/20 p-0.5">
                             <Brain className="h-3 w-3 text-amber-400" />
                           </span>
@@ -163,7 +164,7 @@ export function ModelComparison({ models, onRemoveModel, onClose, isMobile }: Mo
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onRemoveModel(model.id)}
+                        onClick={() => onRemoveModel(model.slug)}
                         className="h-6 text-[10px] text-zinc-500 hover:text-red-400"
                       >
                         Remove
@@ -189,12 +190,12 @@ export function ModelComparison({ models, onRemoveModel, onClose, isMobile }: Mo
                   </td>
                   {models.map(model => {
                     const value = getNestedValue(model, field.key);
-                    const isBest = bestValues[field.key] === model.id;
+                    const isBest = bestValues[field.key] === model.slug;
                     const formatted = field.format(value);
 
                     return (
                       <td
-                        key={model.id}
+                        key={model.slug}
                         className={cn(
                           'p-3 text-center text-sm',
                           isBest ? 'text-violet-300 font-medium' : 'text-zinc-300'

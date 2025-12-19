@@ -1,291 +1,761 @@
 /**
- * Models Tab
+ * Models Tab - Model Management Dashboard
  * 
- * Unified model browser with cross-provider matching and detail panel.
+ * A comprehensive dashboard for viewing and managing AI models.
+ * Shows detailed stats, capabilities, and allows model selection.
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { FixedSizeList as List } from 'react-window';
 import { 
-  Search, Star, Cpu, Image, Mic, FileText, Brain, Sparkles,
-  DollarSign, Infinity, ChevronDown, ChevronUp, Check, X, ExternalLink,
-  GitCompare
+  Search, Cpu, Brain, ArrowRight, ArrowLeft,
+  DollarSign, Infinity, Check, RefreshCw,
+  Zap, X, Image, FileText, Mic, Video,
+  Sparkles, Clock, TrendingUp
 } from 'lucide-react';
-import { openRouterModels, type OpenRouterModel } from '../../../api/client';
+import { openRouterModels, aiProviders, type OpenRouterModel } from '../../../api/client';
 import { queryKeys } from '../../../lib/queryClient';
 import { cn } from '../../../lib/utils';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
-import { addToRecentModels, togglePinnedModel } from '../QuickActionsBar';
-import { ModelComparison } from '../ModelComparison';
+import { addToRecentModels } from '../QuickActionsBar';
 
 interface ModelsTabProps {
   isMobile: boolean;
+  activeProviderId?: string | null;
 }
 
-// Filter types
-type FilterGroup = 'all' | 'openai' | 'anthropic' | 'google' | 'meta' | 'mistral' | 'other';
-type ModalityFilter = 'all' | 'text' | 'image' | 'audio';
+// ============ Main Component ============
 
-export function ModelsTab({ isMobile }: ModelsTabProps) {
+export function ModelsTab({ isMobile, activeProviderId }: ModelsTabProps) {
+  const [mode, setMode] = useState<'dashboard' | 'browse'>('dashboard');
   const [search, setSearch] = useState('');
-  const [groupFilter, setGroupFilter] = useState<FilterGroup>('all');
-  const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all');
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
   const [showFreeOnly, setShowFreeOnly] = useState(false);
-  const [showReasoningOnly, setShowReasoningOnly] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
-  const [compareModelIds, setCompareModelIds] = useState<string[]>([]);
-  const [showComparison, setShowComparison] = useState(false);
-
-  // Fetch OpenRouter models
-  const { data, isLoading } = useQuery({
-    queryKey: queryKeys.openRouterModels.list(),
-    queryFn: () => openRouterModels.list().then(r => r.models),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+  
+  // Get currently selected model from localStorage
+  const [selectedModelSlug, setSelectedModelSlug] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return 'openai/gpt-4o-mini';
+    return localStorage.getItem('tavernstudio:selectedModel') || 'openai/gpt-4o-mini';
   });
 
-  const models = data ?? [];
+  // Fetch OpenRouter models (always fetch for dashboard stats)
+  const { data: openRouterModelsData, isLoading: isLoadingOpenRouter, refetch: refetchOpenRouter, isFetching } = useQuery({
+    queryKey: queryKeys.openRouterModels.list(),
+    queryFn: () => openRouterModels.list().then(r => r.models),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
 
-  // Extract unique groups for filtering
-  const groups = useMemo(() => {
-    const gs = new Set<string>();
-    models.forEach(m => gs.add(m.group.toLowerCase()));
-    return Array.from(gs).sort();
-  }, [models]);
+  // Fetch provider-specific models if an active provider is set
+  const { data: providerModelsData, isLoading: isLoadingProviderModels } = useQuery({
+    queryKey: ['aiProviders', 'models', activeProviderId],
+    queryFn: () => activeProviderId ? aiProviders.listModels(activeProviderId).then(r => r.models) : Promise.resolve([]),
+    enabled: !!activeProviderId && activeProviderId !== 'openrouter',
+    staleTime: 10 * 60 * 1000,
+  });
 
-  // Filter and search models
+  // Clean model ID for fuzzy matching
+  // Handles: claude-opus-4-5-20251101 → claudeopus45
+  //          claude-opus-4.5 → claudeopus45
+  const cleanModelId = useCallback((id: string): string => {
+    return id
+      .toLowerCase()
+      // First: Remove date suffixes like -20251101 or -20250929 (YYYYMMDD pattern)
+      .replace(/[-_]?20\d{6}/g, '')
+      // Remove any remaining 6+ digit sequences (other date formats)
+      .replace(/\d{6,}/g, '')
+      // Now remove punctuation (dashes, dots, underscores)
+      .replace(/[-_.]/g, '')
+      // Trim any trailing/leading whitespace
+      .trim();
+  }, []);
+
+  const models = useMemo(() => {
+    const orModels = openRouterModelsData ?? [];
+    const pModels = providerModelsData ?? [];
+
+    if (activeProviderId && activeProviderId !== 'openrouter' && pModels.length > 0) {
+      return pModels.map(pm => {
+        const cleanedPmId = cleanModelId(pm.id);
+        
+        const match = orModels.find(om => {
+          if (om.slug === pm.id) return true;
+          if (om.slug === `${activeProviderId}/${pm.id}`) return true;
+          if (om.slug.endsWith(`/${pm.id}`)) return true;
+          
+          const omModelPart = om.slug.split('/').pop() || om.slug;
+          const cleanedOmId = cleanModelId(omModelPart);
+          return cleanedOmId === cleanedPmId;
+        });
+
+        if (match) {
+          return { ...match, name: pm.label || match.name };
+        }
+
+        return {
+          slug: `${activeProviderId}/${pm.id}`,
+          name: pm.label,
+          short_name: pm.label,
+          author: activeProviderId,
+          description: '',
+          context_length: 128000,
+          input_modalities: ['text'],
+          output_modalities: ['text'],
+          group: activeProviderId,
+          supports_reasoning: false,
+          hidden: false,
+          permaslug: pm.id,
+        } as OpenRouterModel;
+      });
+    }
+
+    return orModels;
+  }, [openRouterModelsData, providerModelsData, activeProviderId, cleanModelId]);
+
+  const isLoading = isLoadingOpenRouter || isLoadingProviderModels;
+
+  // Filter models for browse mode
   const filteredModels = useMemo(() => {
+    if (mode !== 'browse') return [];
+    
     let result = models;
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(m => 
         m.name.toLowerCase().includes(q) ||
-        m.shortName.toLowerCase().includes(q) ||
+        (m.short_name || '').toLowerCase().includes(q) ||
         m.author.toLowerCase().includes(q) ||
-        m.id.toLowerCase().includes(q)
+        m.slug.toLowerCase().includes(q)
       );
     }
 
-    // Group filter
-    if (groupFilter !== 'all') {
-      const groupMap: Record<FilterGroup, string[]> = {
-        all: [],
-        openai: ['openai', 'gpt'],
-        anthropic: ['anthropic', 'claude'],
-        google: ['google', 'gemini'],
-        meta: ['meta', 'llama'],
-        mistral: ['mistral'],
-        other: [],
-      };
-      const keywords = groupMap[groupFilter];
-      if (keywords.length > 0) {
-        result = result.filter(m => {
-          const group = m.group.toLowerCase();
-          const author = m.author.toLowerCase();
-          return keywords.some(k => group.includes(k) || author.includes(k));
-        });
-      } else if (groupFilter === 'other') {
-        const knownGroups = Object.values(groupMap).flat();
-        result = result.filter(m => {
-          const group = m.group.toLowerCase();
-          const author = m.author.toLowerCase();
-          return !knownGroups.some(k => group.includes(k) || author.includes(k));
-        });
-      }
-    }
-
-    // Modality filter
-    if (modalityFilter !== 'all') {
+    if (providerFilter) {
       result = result.filter(m => {
-        const modalities = [...m.inputModalities, ...m.outputModalities];
-        return modalities.includes(modalityFilter);
+        const author = m.author.toLowerCase();
+        const group = (m.group || '').toLowerCase();
+        return author.includes(providerFilter) || group.includes(providerFilter);
       });
     }
 
-    // Free only
     if (showFreeOnly) {
-      result = result.filter(m => m.isFree);
-    }
-
-    // Reasoning only
-    if (showReasoningOnly) {
-      result = result.filter(m => m.supportsReasoning);
+      result = result.filter(m => m.endpoint?.is_free);
     }
 
     return result;
-  }, [models, search, groupFilter, modalityFilter, showFreeOnly, showReasoningOnly]);
+  }, [mode, models, search, providerFilter, showFreeOnly]);
 
-  const selectedModel = models.find(m => m.id === selectedModelId);
+  // Find current model
+  const currentModel = useMemo(() => {
+    if (!selectedModelSlug) return null;
+    if (models.length > 0) {
+      return models.find(m => m.slug === selectedModelSlug) || null;
+    }
+    return null;
+  }, [selectedModelSlug, models]);
 
-  const handleSelectModel = useCallback((modelId: string) => {
-    localStorage.setItem('tavernstudio:selectedModel', modelId);
-    addToRecentModels(modelId);
-    setSelectedModelId(modelId);
+  const handleSelectModel = useCallback((slug: string) => {
+    localStorage.setItem('tavernstudio:selectedModel', slug);
+    addToRecentModels(slug);
+    setSelectedModelSlug(slug);
+    setMode('dashboard');
     window.dispatchEvent(new Event('storage'));
   }, []);
 
-  const handleToggleCompare = useCallback((modelId: string) => {
-    setCompareModelIds(prev => {
-      if (prev.includes(modelId)) {
-        return prev.filter(id => id !== modelId);
-      }
-      // Max 4 models for comparison
-      if (prev.length >= 4) return prev;
-      return [...prev, modelId];
-    });
-  }, []);
+  // ============ DASHBOARD MODE ============
+  if (mode === 'dashboard') {
+    return (
+      <div className={cn('h-full flex flex-col overflow-auto', isMobile ? 'p-4' : 'p-6')}>
+        {/* Dashboard Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-zinc-100">Model Dashboard</h2>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              {models.length > 0 ? `${models.length} models available` : 'Loading models...'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchOpenRouter()}
+              disabled={isFetching}
+              className="gap-2 border-zinc-800"
+            >
+              <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+              {isFetching ? 'Syncing...' : 'Sync'}
+            </Button>
+            <Button
+              onClick={() => setMode('browse')}
+              className="gap-2 bg-violet-600 hover:bg-violet-500"
+            >
+              <Search className="h-4 w-4" />
+              Browse Models
+            </Button>
+          </div>
+        </div>
 
-  const compareModels = useMemo(() => 
-    compareModelIds.map(id => models.find(m => m.id === id)).filter((m): m is OpenRouterModel => !!m),
-    [compareModelIds, models]
-  );
+        {/* Active Model Section */}
+        {currentModel ? (
+          <ActiveModelDashboard 
+            model={currentModel} 
+            onChangeModel={() => setMode('browse')}
+            isMobile={isMobile}
+          />
+        ) : selectedModelSlug ? (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-14 w-14 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                <Zap className="h-7 w-7 text-violet-400" />
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase text-zinc-500 mb-1">
+                  {selectedModelSlug.split('/')[0]}
+                </div>
+                <h3 className="text-xl font-bold text-zinc-100">
+                  {selectedModelSlug.split('/').pop()}
+                </h3>
+              </div>
+            </div>
+            <p className="text-sm text-zinc-500 mb-4">
+              Model data not available in current catalog. This may be a custom or unlisted model.
+            </p>
+            <Button variant="outline" onClick={() => setMode('browse')}>
+              Select Different Model
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-dashed border-zinc-800 p-12 text-center">
+            <Cpu className="h-16 w-16 text-zinc-700 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-zinc-400 mb-2">No Model Selected</h3>
+            <p className="text-sm text-zinc-500 mb-6 max-w-md mx-auto">
+              Select an AI model to power your conversations. Browse from hundreds of options including GPT-4, Claude, Llama, and more.
+            </p>
+            <Button onClick={() => setMode('browse')} className="gap-2">
+              <Search className="h-4 w-4" />
+              Browse Models
+            </Button>
+          </div>
+        )}
 
+        {/* Recent Models */}
+        <RecentModelsGrid 
+          onSelect={handleSelectModel}
+          currentSlug={selectedModelSlug}
+          allModels={models}
+        />
+      </div>
+    );
+  }
+
+  // ============ BROWSE MODE ============
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Filters Bar */}
-      <div className="shrink-0 border-b border-zinc-800/50 p-3 space-y-3">
-        {/* Search */}
+      {/* Header */}
+      <div className="shrink-0 p-4 border-b border-zinc-800/50 flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setMode('dashboard'); setSearch(''); setProviderFilter(null); }}
+          className="h-9 px-3 gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+        <div className="flex-1">
+          <h3 className="text-sm font-bold text-zinc-100">Model Browser</h3>
+          <p className="text-xs text-zinc-500">
+            {isLoading ? 'Loading...' : `${filteredModels.length} models`}
+          </p>
+        </div>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="shrink-0 p-4 border-b border-zinc-800/30 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search models..."
-            className="pl-10 bg-zinc-900/50 border-zinc-800/60"
+            placeholder="Search models by name, provider, or capability..."
+            className="pl-10 pr-10 bg-zinc-900/50 border-zinc-800/60 h-11"
+            autoFocus
           />
-        </div>
-
-        {/* Filter chips */}
-        <div className={cn('flex gap-2 flex-wrap', isMobile && 'text-xs')}>
-          {/* Group filters */}
-          {(['all', 'openai', 'anthropic', 'google', 'meta', 'mistral', 'other'] as const).map(g => (
-            <button
-              key={g}
-              onClick={() => setGroupFilter(g)}
-              className={cn(
-                'rounded-full px-3 py-1 text-xs font-medium transition-colors capitalize',
-                groupFilter === g
-                  ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                  : 'bg-zinc-800/50 text-zinc-400 border border-transparent hover:bg-zinc-800'
-              )}
+          {search && (
+            <button 
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
             >
-              {g}
+              <X className="h-4 w-4" />
             </button>
-          ))}
+          )}
         </div>
 
-        <div className={cn('flex gap-2 flex-wrap', isMobile && 'text-xs')}>
-          {/* Modality filters */}
-          <FilterChip
-            active={modalityFilter === 'text'}
-            onClick={() => setModalityFilter(modalityFilter === 'text' ? 'all' : 'text')}
-            icon={<FileText className="h-3 w-3" />}
-            label="Text"
-          />
-          <FilterChip
-            active={modalityFilter === 'image'}
-            onClick={() => setModalityFilter(modalityFilter === 'image' ? 'all' : 'image')}
-            icon={<Image className="h-3 w-3" />}
-            label="Vision"
-          />
-          <FilterChip
-            active={modalityFilter === 'audio'}
-            onClick={() => setModalityFilter(modalityFilter === 'audio' ? 'all' : 'audio')}
-            icon={<Mic className="h-3 w-3" />}
-            label="Audio"
-          />
-          <div className="w-px h-6 bg-zinc-800 mx-1" />
-          <FilterChip
+        <div className="flex gap-2 flex-wrap">
+          <FilterPill active={!providerFilter} onClick={() => setProviderFilter(null)} label="All Providers" />
+          {['openai', 'anthropic', 'google', 'x-ai', 'meta', 'mistral', 'deepseek'].map(p => (
+            <FilterPill
+              key={p}
+              active={providerFilter === p}
+              onClick={() => setProviderFilter(providerFilter === p ? null : p)}
+              label={p === 'xai' ? 'xAI' : p.charAt(0).toUpperCase() + p.slice(1)}
+            />
+          ))}
+          <div className="w-px h-7 bg-zinc-800 mx-1 self-center" />
+          <FilterPill
             active={showFreeOnly}
             onClick={() => setShowFreeOnly(!showFreeOnly)}
-            icon={<DollarSign className="h-3 w-3" />}
-            label="Free"
-          />
-          <FilterChip
-            active={showReasoningOnly}
-            onClick={() => setShowReasoningOnly(!showReasoningOnly)}
-            icon={<Brain className="h-3 w-3" />}
-            label="Reasoning"
+            label="Free Only"
+            icon={<DollarSign className="h-3.5 w-3.5" />}
           />
         </div>
-      </div>
-
-      {/* Results count + Compare button */}
-      <div className="shrink-0 px-3 py-2 flex items-center justify-between border-b border-zinc-800/30">
-        <span className="text-xs text-zinc-500">{filteredModels.length} models found</span>
-        
-        {compareModelIds.length > 0 && (
-          <Button
-            size="sm"
-            onClick={() => setShowComparison(true)}
-            className="h-7 gap-1.5 text-xs"
-          >
-            <GitCompare className="h-3.5 w-3.5" />
-            Compare ({compareModelIds.length})
-          </Button>
-        )}
       </div>
 
       {/* Model List */}
-      <div className="flex-1 overflow-auto p-3">
+      <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="text-sm text-zinc-500 py-8 text-center">Loading models...</div>
-        ) : filteredModels.length === 0 ? (
-          <div className="text-sm text-zinc-500 py-8 text-center">No models match your filters</div>
-        ) : (
-          <div className="space-y-2">
-            {filteredModels.map(model => (
-              <ModelCard
-                key={model.id}
-                model={model}
-                selected={selectedModelId === model.id}
-                expanded={expandedCard === model.id}
-                comparing={compareModelIds.includes(model.id)}
-                onSelect={() => handleSelectModel(model.id)}
-                onToggleExpand={() => setExpandedCard(expandedCard === model.id ? null : model.id)}
-                onToggleCompare={() => handleToggleCompare(model.id)}
-                isMobile={isMobile}
-              />
-            ))}
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-3">
+              <RefreshCw className="h-8 w-8 animate-spin text-zinc-600 mx-auto" />
+              <p className="text-sm text-zinc-500">Loading model catalog...</p>
+            </div>
           </div>
+        ) : filteredModels.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-3">
+              <Search className="h-10 w-10 text-zinc-700 mx-auto" />
+              <p className="text-sm text-zinc-500">No models match your filters</p>
+              <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setProviderFilter(null); setShowFreeOnly(false); }}>
+                Clear all filters
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <VirtualizedModelList
+            models={filteredModels}
+            selectedSlug={selectedModelSlug}
+            onSelect={handleSelectModel}
+            isMobile={isMobile}
+          />
         )}
       </div>
-
-      {/* Model Comparison Modal */}
-      {showComparison && compareModels.length > 0 && (
-        <ModelComparison
-          models={compareModels}
-          onRemoveModel={(id) => setCompareModelIds(prev => prev.filter(x => x !== id))}
-          onClose={() => setShowComparison(false)}
-          isMobile={isMobile}
-        />
-      )}
     </div>
   );
 }
 
-function FilterChip({
+// ============ Active Model Dashboard ============
+
+function ActiveModelDashboard({ 
+  model, 
+  onChangeModel,
+  isMobile 
+}: { 
+  model: OpenRouterModel; 
+  onChangeModel: () => void;
+  isMobile: boolean;
+}) {
+  const formatContext = (ctx: number) => {
+    if (ctx >= 1_000_000) return `${(ctx / 1_000_000).toFixed(1)}M`;
+    if (ctx >= 1000) return `${Math.round(ctx / 1000)}K`;
+    return String(ctx);
+  };
+
+  const formatPrice = (price: string | number | undefined) => {
+    if (!price) return 'Free';
+    const p = typeof price === 'string' ? parseFloat(price) : price;
+    if (p === 0 || isNaN(p)) return 'Free';
+    const perMillion = p * 1_000_000;
+    if (perMillion < 0.01) return '<$0.01/M';
+    return `$${perMillion.toFixed(2)}/M`;
+  };
+
+  const inputPrice = model.endpoint?.pricing?.prompt;
+  const outputPrice = model.endpoint?.pricing?.completion;
+  const isFree = model.endpoint?.is_free;
+  const hasReasoning = model.supports_reasoning || model.endpoint?.supports_reasoning;
+  const [provider] = model.slug.split('/');
+
+  return (
+    <div className="space-y-4 mb-6">
+      {/* Model Identity Card */}
+      <div className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-950/50 overflow-hidden">
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <ProviderLogo provider={provider} size="lg" />
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">{provider}</span>
+                  {isFree && (
+                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                      FREE TIER
+                    </span>
+                  )}
+                  {hasReasoning && (
+                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                      <Brain className="h-3 w-3" />
+                      REASONING
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-2xl font-bold text-zinc-100">
+                  {model.short_name || model.name}
+                </h3>
+                <code className="text-xs text-zinc-600 font-mono mt-1 block">
+                  {model.slug}
+                </code>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={onChangeModel}
+              className="shrink-0 gap-2 border-zinc-700 hover:bg-zinc-800"
+            >
+              Change Model
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {model.description && (
+            <p className="mt-4 text-sm text-zinc-400 leading-relaxed line-clamp-2">
+              {model.description}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className={cn(
+        "grid gap-3",
+        isMobile ? "grid-cols-2" : "grid-cols-4"
+      )}>
+        <StatCard
+          icon={<Infinity className="h-5 w-5" />}
+          label="Context Window"
+          value={formatContext(model.context_length)}
+          subtext="tokens"
+          color="violet"
+        />
+        <StatCard
+          icon={<TrendingUp className="h-5 w-5" />}
+          label="Input Cost"
+          value={formatPrice(inputPrice)}
+          subtext="per million tokens"
+          color="blue"
+        />
+        <StatCard
+          icon={<TrendingUp className="h-5 w-5" />}
+          label="Output Cost"
+          value={formatPrice(outputPrice)}
+          subtext="per million tokens"
+          color="emerald"
+        />
+        <StatCard
+          icon={<Clock className="h-5 w-5" />}
+          label="Max Output"
+          value={model.endpoint?.max_completion_tokens ? formatContext(model.endpoint.max_completion_tokens) : '—'}
+          subtext="tokens"
+          color="orange"
+        />
+      </div>
+
+      {/* Capabilities Grid */}
+      <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-4">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">Capabilities</h4>
+        <div className="flex flex-wrap gap-2">
+          {model.input_modalities?.includes('text') && (
+            <CapabilityBadge icon={<FileText className="h-3.5 w-3.5" />} label="Text Input" />
+          )}
+          {model.input_modalities?.includes('image') && (
+            <CapabilityBadge icon={<Image className="h-3.5 w-3.5" />} label="Vision" active />
+          )}
+          {model.input_modalities?.includes('audio') && (
+            <CapabilityBadge icon={<Mic className="h-3.5 w-3.5" />} label="Audio Input" active />
+          )}
+          {model.output_modalities?.includes('text') && (
+            <CapabilityBadge icon={<FileText className="h-3.5 w-3.5" />} label="Text Output" />
+          )}
+          {model.output_modalities?.includes('image') && (
+            <CapabilityBadge icon={<Image className="h-3.5 w-3.5" />} label="Image Gen" active />
+          )}
+          {model.output_modalities?.includes('audio') && (
+            <CapabilityBadge icon={<Video className="h-3.5 w-3.5" />} label="Audio Out" active />
+          )}
+          {hasReasoning && (
+            <CapabilityBadge icon={<Brain className="h-3.5 w-3.5" />} label="Reasoning" active />
+          )}
+          {model.endpoint?.supports_multipart && (
+            <CapabilityBadge icon={<Sparkles className="h-3.5 w-3.5" />} label="Multipart" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ Stat Card ============
+
+function StatCard({ 
+  icon, 
+  label, 
+  value, 
+  subtext,
+  color 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  value: string;
+  subtext: string;
+  color: 'violet' | 'blue' | 'emerald' | 'orange';
+}) {
+  const colorStyles = {
+    violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  };
+
+  return (
+    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-4">
+      <div className={cn('inline-flex p-2 rounded-lg border mb-3', colorStyles[color])}>
+        {icon}
+      </div>
+      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+        {label}
+      </div>
+      <div className="text-xl font-bold text-zinc-100">{value}</div>
+      <div className="text-[10px] text-zinc-600">{subtext}</div>
+    </div>
+  );
+}
+
+// ============ Capability Badge ============
+
+function CapabilityBadge({ 
+  icon, 
+  label, 
+  active = false 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  active?: boolean;
+}) {
+  return (
+    <div className={cn(
+      'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium',
+      active 
+        ? 'bg-violet-500/15 text-violet-300 border border-violet-500/30'
+        : 'bg-zinc-800/50 text-zinc-400 border border-zinc-800'
+    )}>
+      {icon}
+      {label}
+    </div>
+  );
+}
+
+// ============ Recent Models Grid ============
+
+function RecentModelsGrid({ 
+  onSelect, 
+  currentSlug,
+  allModels 
+}: { 
+  onSelect: (slug: string) => void; 
+  currentSlug: string | null;
+  allModels: OpenRouterModel[];
+}) {
+  const [recentSlugs, setRecentSlugs] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('tavernstudio:recentModels');
+      const recent = raw ? JSON.parse(raw) : [];
+      const validRecent = (Array.isArray(recent) ? recent : [])
+        .filter((s): s is string => typeof s === 'string' && s !== currentSlug)
+        .slice(0, 6);
+      setRecentSlugs(validRecent);
+    } catch {
+      setRecentSlugs([]);
+    }
+  }, [currentSlug]);
+
+  const recentModels = useMemo(() => {
+    return recentSlugs.map(slug => {
+      const found = allModels.find(m => m.slug === slug);
+      return found || { slug, name: slug.split('/').pop() || slug, author: slug.split('/')[0] || 'unknown' };
+    });
+  }, [recentSlugs, allModels]);
+
+  if (recentModels.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      <h4 className="text-sm font-bold text-zinc-400 mb-3">Recently Used</h4>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {recentModels.map((model) => {
+          const [provider] = model.slug.split('/');
+          return (
+            <button
+              key={model.slug}
+              onClick={() => onSelect(model.slug)}
+              className="rounded-xl border border-zinc-800/60 bg-zinc-900/20 p-3 text-left hover:bg-zinc-900/50 hover:border-zinc-700 transition-all group"
+            >
+              <ProviderLogo provider={provider} size="sm" className="mb-2" />
+              <div className="text-xs text-zinc-300 font-medium truncate group-hover:text-zinc-100">
+                {('short_name' in model && model.short_name) || model.name}
+              </div>
+              <div className="text-[10px] text-zinc-600 truncate">
+                {provider}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============ Virtualized Model List ============
+
+function VirtualizedModelList({
+  models,
+  selectedSlug,
+  onSelect,
+  isMobile,
+}: {
+  models: OpenRouterModel[];
+  selectedSlug: string | null;
+  onSelect: (slug: string) => void;
+  isMobile: boolean;
+}) {
+  const listRef = useRef<List>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState(400);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setListHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const ITEM_HEIGHT = isMobile ? 80 : 72;
+
+  const Row = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const model = models[index];
+    if (!model) return null;
+
+    const isSelected = model.slug === selectedSlug;
+    const isFree = model.endpoint?.is_free;
+    const hasReasoning = model.supports_reasoning || model.endpoint?.supports_reasoning;
+    const hasVision = model.input_modalities?.includes('image');
+    const [provider] = model.slug.split('/');
+
+    const formatContext = (ctx: number) => {
+      if (ctx >= 1_000_000) return `${(ctx / 1_000_000).toFixed(1)}M`;
+      if (ctx >= 1000) return `${Math.round(ctx / 1000)}K`;
+      return String(ctx);
+    };
+
+    const formatPrice = (price: string | number | undefined) => {
+      if (!price) return 'Free';
+      const p = typeof price === 'string' ? parseFloat(price) : price;
+      if (p === 0 || isNaN(p)) return 'Free';
+      const perMillion = p * 1_000_000;
+      if (perMillion < 0.01) return '<$0.01';
+      return `$${perMillion.toFixed(2)}`;
+    };
+
+    return (
+      <div style={style} className="px-4 py-1">
+        <button
+          onClick={() => onSelect(model.slug)}
+          className={cn(
+            'w-full flex items-center gap-4 rounded-xl border p-3 text-left transition-all',
+            isSelected
+              ? 'border-violet-500/50 bg-violet-500/10 ring-1 ring-violet-500/20'
+              : 'border-zinc-800/40 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700'
+          )}
+        >
+          {/* Provider Badge */}
+          <ProviderLogo provider={provider} size="md" selected={isSelected} />
+
+          {/* Model Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="font-semibold text-sm text-zinc-100 truncate">
+                {model.short_name || model.name}
+              </span>
+              {isFree && (
+                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 shrink-0">
+                  FREE
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+              <span className="font-medium">{provider}</span>
+              <span className="text-zinc-700">•</span>
+              <span>{formatContext(model.context_length)} ctx</span>
+              <span className="text-zinc-700">•</span>
+              <span>{formatPrice(model.endpoint?.pricing?.prompt)}/M</span>
+            </div>
+          </div>
+
+          {/* Capability Icons */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {hasVision && <Image className="h-4 w-4 text-blue-400" />}
+            {hasReasoning && <Brain className="h-4 w-4 text-amber-400" />}
+            {isSelected && <Check className="h-5 w-5 text-violet-400 ml-1" />}
+          </div>
+        </button>
+      </div>
+    );
+  }, [models, selectedSlug, onSelect]);
+
+  return (
+    <div ref={containerRef} className="h-full">
+      <List
+        ref={listRef}
+        height={listHeight}
+        width="100%"
+        itemCount={models.length}
+        itemSize={ITEM_HEIGHT}
+        overscanCount={5}
+      >
+        {Row}
+      </List>
+    </div>
+  );
+}
+
+// ============ Filter Pill ============
+
+function FilterPill({
   active,
   onClick,
-  icon,
   label,
+  icon,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
   label: string;
+  icon?: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+        'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
         active
           ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-          : 'bg-zinc-800/50 text-zinc-400 border border-transparent hover:bg-zinc-800'
+          : 'bg-zinc-900/50 text-zinc-400 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-300'
       )}
     >
       {icon}
@@ -294,239 +764,93 @@ function FilterChip({
   );
 }
 
-function ModelCard({
-  model,
-  selected,
-  expanded,
-  comparing,
-  onSelect,
-  onToggleExpand,
-  onToggleCompare,
-  isMobile,
-}: {
-  model: OpenRouterModel;
-  selected: boolean;
-  expanded: boolean;
-  comparing: boolean;
-  onSelect: () => void;
-  onToggleExpand: () => void;
-  onToggleCompare: () => void;
-  isMobile: boolean;
+// ============ Provider Logo ============
+
+const PROVIDER_LOGOS: Record<string, string> = {
+  openai: '/provider/openai.svg',
+  anthropic: '/provider/anthropic.svg',
+  google: '/provider/google.svg',
+  xai: '/provider/xai.svg',
+  'x-ai': '/provider/xai.svg',
+};
+
+function getProviderLogo(provider: string): string {
+  const key = provider.toLowerCase();
+  for (const [p, logo] of Object.entries(PROVIDER_LOGOS)) {
+    if (key.includes(p)) return logo;
+  }
+  return '/provider/openrouter.svg'; // Fallback
+}
+
+function getProviderBgStyle(provider: string): string {
+  const styles: Record<string, string> = {
+    openai: 'bg-white/10 border-white/20',
+    anthropic: 'bg-orange-500/10 border-orange-500/20',
+    google: 'bg-blue-500/10 border-blue-500/20',
+    openrouter: 'bg-white/10 border-white/20',
+    'x-ai': 'bg-zinc-800 border-zinc-700',
+    xai: 'bg-zinc-800 border-zinc-700',
+    meta: 'bg-indigo-500/10 border-indigo-500/20',
+    mistral: 'bg-violet-500/10 border-violet-500/20',
+    deepseek: 'bg-cyan-500/10 border-cyan-500/20',
+    cohere: 'bg-rose-500/10 border-rose-500/20',
+  };
+  
+  const key = provider.toLowerCase();
+  for (const [p, style] of Object.entries(styles)) {
+    if (key.includes(p)) return style;
+  }
+  return 'bg-white/10 border-white/20'; // Default to white (OpenRouter style)
+}
+
+function ProviderLogo({ 
+  provider, 
+  size = 'md',
+  className,
+  selected = false,
+}: { 
+  provider: string; 
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+  selected?: boolean;
 }) {
-  const [isPinned, setIsPinned] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      const raw = localStorage.getItem('tavernstudio:pinnedModels');
-      const pinned = raw ? JSON.parse(raw) : [];
-      return pinned.includes(model.id);
-    } catch {
-      return false;
-    }
-  });
-
-  const handleTogglePin = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newPinned = togglePinnedModel(model.id);
-    setIsPinned(newPinned);
-    window.dispatchEvent(new Event('storage'));
+  const sizeClasses = {
+    sm: 'h-8 w-8 p-1.5',
+    md: 'h-11 w-11 p-2',
+    lg: 'h-16 w-16 p-3',
   };
 
-  const formatPrice = (price: number) => {
-    if (price === 0) return 'Free';
-    // Price is per token, convert to per 1M tokens
-    const perMillion = price * 1_000_000;
-    if (perMillion < 0.01) return `$${perMillion.toFixed(4)}`;
-    return `$${perMillion.toFixed(2)}`;
-  };
-
-  const formatContext = (ctx: number) => {
-    if (ctx >= 1_000_000) return `${(ctx / 1_000_000).toFixed(1)}M`;
-    if (ctx >= 1000) return `${Math.round(ctx / 1000)}K`;
-    return String(ctx);
-  };
+  const logoUrl = getProviderLogo(provider);
+  const providerKey = provider.toLowerCase();
+  
+  // Define forced colors for the SVG logos
+  let forcedColorClass = "bg-white"; // Default for OpenAI/OpenRouter
+  if (providerKey.includes('google')) {
+    forcedColorClass = "bg-[#4285F4]"; // Google Blue
+  } else if (providerKey.includes('anthropic')) {
+    forcedColorClass = "bg-[#D97757]"; // Anthropic Orange
+  }
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border transition-all',
-        selected
-          ? 'border-violet-500/50 bg-violet-500/5 ring-1 ring-violet-500/20'
-          : 'border-zinc-800/60 bg-zinc-900/30 hover:border-zinc-700'
-      )}
-    >
-      {/* Main row */}
+    <div className={cn(
+      'rounded-xl flex items-center justify-center border shrink-0',
+      sizeClasses[size],
+      selected ? 'bg-violet-500/20 border-violet-500/30' : getProviderBgStyle(provider),
+      className
+    )}>
       <div 
-        className="flex items-center gap-3 p-3 cursor-pointer"
-        onClick={onSelect}
-      >
-        {/* Provider icon */}
-        <div className={cn(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
-          selected ? 'bg-violet-500/20 text-violet-400' : 'bg-zinc-800 text-zinc-400'
-        )}>
-          {model.providerIconUrl ? (
-            <img src={model.providerIconUrl} alt="" className="h-5 w-5" />
-          ) : (
-            <Cpu className="h-5 w-5" />
-          )}
-        </div>
-
-        {/* Model info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-zinc-100 truncate">
-              {model.shortName || model.name}
-            </span>
-            
-            {/* Badges */}
-            {model.isFree && (
-              <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
-                Free
-              </span>
-            )}
-            {model.supportsReasoning && (
-              <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                <Brain className="h-3 w-3 inline" />
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
-            <span>{model.author}</span>
-            <span className="flex items-center gap-1">
-              <Infinity className="h-3 w-3" />
-              {formatContext(model.contextLength)}
-            </span>
-            {!model.isFree && model.pricing && (
-              <span className="flex items-center gap-1">
-                <DollarSign className="h-3 w-3" />
-                {formatPrice(model.pricing.prompt)}/M in
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
-            className={cn(
-              'p-1.5 rounded-lg transition-colors',
-              comparing
-                ? 'text-blue-400 bg-blue-500/10'
-                : 'text-zinc-600 hover:text-zinc-400'
-            )}
-            title="Add to comparison"
-          >
-            <GitCompare className="h-4 w-4" />
-          </button>
-          
-          <button
-            onClick={handleTogglePin}
-            className={cn(
-              'p-1.5 rounded-lg transition-colors',
-              isPinned
-                ? 'text-amber-500 bg-amber-500/10'
-                : 'text-zinc-600 hover:text-zinc-400'
-            )}
-          >
-            <Star className={cn('h-4 w-4', isPinned && 'fill-amber-500')} />
-          </button>
-
-          {selected && (
-            <div className="p-1.5 text-violet-400">
-              <Check className="h-4 w-4" />
-            </div>
-          )}
-
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
-            className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded details */}
-      {expanded && (
-        <div className="border-t border-zinc-800/50 p-3 space-y-3">
-          {/* Description */}
-          {model.description && (
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              {model.description.slice(0, 300)}
-              {model.description.length > 300 && '...'}
-            </p>
-          )}
-
-          {/* Modalities */}
-          <div className="flex gap-4">
-            <div>
-              <span className="text-[10px] uppercase text-zinc-500 block mb-1">Input</span>
-              <div className="flex gap-1">
-                {(model.inputModalities ?? []).map((m, i) => (
-                  <ModalityBadge key={`in-${m}-${i}`} modality={m} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="text-[10px] uppercase text-zinc-500 block mb-1">Output</span>
-              <div className="flex gap-1">
-                {(model.outputModalities ?? []).map((m, i) => (
-                  <ModalityBadge key={`out-${m}-${i}`} modality={m} />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Pricing */}
-          <div className="flex gap-4">
-            <div>
-              <span className="text-[10px] uppercase text-zinc-500 block mb-1">Prompt</span>
-              <span className="text-sm font-medium text-zinc-200">{formatPrice(model.pricing?.prompt ?? 0)}/M</span>
-            </div>
-            <div>
-              <span className="text-[10px] uppercase text-zinc-500 block mb-1">Completion</span>
-              <span className="text-sm font-medium text-zinc-200">{formatPrice(model.pricing?.completion ?? 0)}/M</span>
-            </div>
-            <div>
-              <span className="text-[10px] uppercase text-zinc-500 block mb-1">Context</span>
-              <span className="text-sm font-medium text-zinc-200">{formatContext(model.contextLength)}</span>
-            </div>
-          </div>
-
-          {/* OpenRouter link */}
-          <div className="pt-2">
-            <a
-              href={`https://openrouter.ai/models/${model.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-violet-400 transition-colors"
-            >
-              <ExternalLink className="h-3 w-3" />
-              View on OpenRouter
-            </a>
-          </div>
-        </div>
-      )}
+        className={cn("w-full h-full", forcedColorClass)}
+        style={{
+          maskImage: `url(${logoUrl})`,
+          WebkitMaskImage: `url(${logoUrl})`,
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center',
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+        }}
+      />
     </div>
   );
 }
-
-function ModalityBadge({ modality }: { modality: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    text: <FileText className="h-3 w-3" />,
-    image: <Image className="h-3 w-3" />,
-    audio: <Mic className="h-3 w-3" />,
-    video: <Sparkles className="h-3 w-3" />,
-    file: <FileText className="h-3 w-3" />,
-  };
-
-  return (
-    <span className="flex items-center gap-1 rounded-md bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
-      {icons[modality] || <Sparkles className="h-3 w-3" />}
-      {modality}
-    </span>
-  );
-}
-

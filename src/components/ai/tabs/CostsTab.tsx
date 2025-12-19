@@ -20,44 +20,54 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 interface CostsTabProps {
   isMobile: boolean;
+  activeProviderId?: string | null;
 }
 
 // Time range options
 type TimeRange = 'today' | 'week' | 'month' | 'all';
 
-export function CostsTab({ isMobile }: CostsTabProps) {
+export function CostsTab({ isMobile, activeProviderId }: CostsTabProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const [calculatorExpanded, setCalculatorExpanded] = useState(false);
 
   // Calculate date range
-  const dateRange = useMemo(() => {
+  const filters = useMemo(() => {
     const now = Date.now();
+    let startDate: number | undefined;
     switch (timeRange) {
       case 'today':
-        return { startDate: now - 24 * 60 * 60 * 1000, endDate: now };
+        startDate = now - 24 * 60 * 60 * 1000;
+        break;
       case 'week':
-        return { startDate: now - 7 * 24 * 60 * 60 * 1000, endDate: now };
+        startDate = now - 7 * 24 * 60 * 60 * 1000;
+        break;
       case 'month':
-        return { startDate: now - 30 * 24 * 60 * 60 * 1000, endDate: now };
-      default:
-        return { startDate: undefined, endDate: undefined };
+        startDate = now - 30 * 24 * 60 * 60 * 1000;
+        break;
     }
-  }, [timeRange]);
+    return { startDate, endDate: now, providerId: activeProviderId || undefined };
+  }, [timeRange, activeProviderId]);
 
   // Fetch cost data
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: queryKeys.aiRequestLogs.summary(dateRange),
-    queryFn: () => aiRequestLogs.getSummary(dateRange),
+    queryKey: queryKeys.aiRequestLogs.summary(filters),
+    queryFn: () => aiRequestLogs.getSummary(filters),
   });
 
   const { data: byModel, isLoading: byModelLoading } = useQuery({
-    queryKey: queryKeys.aiRequestLogs.byModel(dateRange),
-    queryFn: () => aiRequestLogs.getByModel({ ...dateRange, limit: 10 }),
+    queryKey: queryKeys.aiRequestLogs.byModel(filters),
+    queryFn: () => aiRequestLogs.getByModel({ ...filters, limit: 10 }),
   });
 
   const { data: trend, isLoading: trendLoading } = useQuery({
-    queryKey: queryKeys.aiRequestLogs.trend({ days: timeRange === 'today' ? 1 : timeRange === 'week' ? 7 : 30 }),
-    queryFn: () => aiRequestLogs.getTrend({ days: timeRange === 'today' ? 1 : timeRange === 'week' ? 7 : 30 }),
+    queryKey: queryKeys.aiRequestLogs.trend({ 
+      days: timeRange === 'today' ? 1 : timeRange === 'week' ? 7 : 30,
+      providerId: activeProviderId || undefined 
+    }),
+    queryFn: () => aiRequestLogs.getTrend({ 
+      days: timeRange === 'today' ? 1 : timeRange === 'week' ? 7 : 30,
+      providerId: activeProviderId || undefined 
+    }),
   });
 
   return (

@@ -19,28 +19,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 interface LogsTabProps {
   isMobile: boolean;
+  activeProviderId?: string | null;
 }
 
 type LogView = 'all' | 'errors';
 
-export function LogsTab({ isMobile }: LogsTabProps) {
+export function LogsTab({ isMobile, activeProviderId }: LogsTabProps) {
   const [view, setView] = useState<LogView>('all');
   const [modelFilter, setModelFilter] = useState('');
   const [limit, setLimit] = useState(50);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
   // Fetch logs
+  const filters = useMemo(() => ({
+    limit,
+    status: view === 'errors' ? ('error' as const) : undefined,
+    modelSlug: modelFilter || undefined,
+    providerId: activeProviderId || undefined,
+  }), [limit, view, modelFilter, activeProviderId]);
+
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: queryKeys.aiRequestLogs.list({ 
-      limit, 
-      status: view === 'errors' ? 'error' : undefined,
-      modelSlug: modelFilter || undefined,
-    }),
-    queryFn: () => aiRequestLogs.list({ 
-      limit, 
-      status: view === 'errors' ? 'error' : undefined,
-      modelSlug: modelFilter || undefined,
-    }),
+    queryKey: queryKeys.aiRequestLogs.list(filters),
+    queryFn: () => aiRequestLogs.list(filters),
   });
 
   const logs = data?.logs ?? [];

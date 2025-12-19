@@ -26,7 +26,8 @@ function getRecentModels(): string[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem('tavernstudio:recentModels');
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return (Array.isArray(parsed) ? parsed : []).filter((m): m is string => typeof m === 'string');
   } catch {
     return [];
   }
@@ -37,7 +38,8 @@ function getPinnedModels(): string[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem('tavernstudio:pinnedModels');
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return (Array.isArray(parsed) ? parsed : []).filter((m): m is string => typeof m === 'string');
   } catch {
     return [];
   }
@@ -45,8 +47,8 @@ function getPinnedModels(): string[] {
 
 // Add to recent models
 export function addToRecentModels(modelSlug: string): void {
-  if (typeof window === 'undefined') return;
-  const recent = getRecentModels().filter(m => m !== modelSlug);
+  if (typeof window === 'undefined' || !modelSlug) return;
+  const recent = getRecentModels().filter(m => m && m !== modelSlug);
   recent.unshift(modelSlug);
   const limited = recent.slice(0, 5);
   localStorage.setItem('tavernstudio:recentModels', JSON.stringify(limited));

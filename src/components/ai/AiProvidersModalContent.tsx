@@ -49,8 +49,8 @@ export function AiProvidersModalContent({
   const activeStrategyId = provider.connection?.auth_strategy_id;
   const selectedStrategy = provider.authStrategies.find(s => s.id === selectedStrategyId);
 
-  // Show model selector when connected to OpenRouter
-  const showModelSelector = isConnected && provider.id === 'openrouter';
+  // Show model selector when connected
+  const showModelSelector = isConnected;
 
   return (
     <div className="space-y-6">
@@ -66,6 +66,7 @@ export function AiProvidersModalContent({
           <ModelSelector
             value={selectedModelId}
             onChange={onSelectModel}
+            providerId={provider.id}
           />
         </div>
       )}
