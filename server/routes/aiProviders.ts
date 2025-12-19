@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { aiProviders, getProviderOrThrow } from '../ai/registry';
 import { getProviderConfig, setProviderConfig } from '../ai/config/store';
-import { hasProviderSecret, setProviderSecret } from '../ai/secrets/store';
+import { getProviderSecret, hasProviderSecret, setProviderSecret } from '../ai/secrets/store';
 import { connectProvider, disconnectProvider } from '../ai/connections/manager';
 import { getProviderConnection } from '../ai/connections/store';
 import { finishOpenRouterPkce, getPkceReturnUrl, startOpenRouterPkce } from '../ai/pkce/openrouter';
@@ -103,6 +103,40 @@ aiProviderRoutes.post('/:providerId/disconnect', (c) => {
   getProviderOrThrow(providerId);
   disconnectProvider(providerId, 'manual disconnect');
   return c.json({ success: true });
+});
+
+aiProviderRoutes.get('/:providerId/models', async (c) => {
+  const providerId = c.req.param('providerId');
+  const provider = getProviderOrThrow(providerId);
+
+  if (!provider.listModels) {
+    return c.json({ models: [] });
+  }
+
+  // Get connection to find the active auth strategy
+  const connection = getProviderConnection(providerId);
+  const authStrategyId = connection?.auth_strategy_id || 'apiKey';
+
+  // Gather secrets for the auth strategy
+  const strategy = provider.authStrategies.find((s) => s.id === authStrategyId);
+  const secrets: Record<string, string> = {};
+  
+  if (strategy) {
+    for (const key of strategy.requiredSecretKeys) {
+      const value = getProviderSecret(providerId, authStrategyId, key);
+      if (value) {
+        secrets[key] = value;
+      }
+    }
+  }
+
+  try {
+    const models = await provider.listModels(secrets);
+    return c.json({ models });
+  } catch (e) {
+    console.error(`[aiProviders] Error fetching models for ${providerId}:`, e);
+    return c.json({ models: [] }); // Return empty on error, don't fail
+  }
 });
 
 // ===== OpenRouter PKCE =====
