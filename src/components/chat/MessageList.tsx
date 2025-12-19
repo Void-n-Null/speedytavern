@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAnimationConfig, useLayoutConfig, useActiveMessageStyle, useMessageListBackgroundConfig } from '../../hooks/queries/useProfiles';
 import { useAddMessage, useChatActivePathNodeIds, useChatNode, useChatSpeaker, useDefaultChatId, useDeleteMessage, useEditMessage, useSwitchBranch } from '../../hooks/queries';
 import { queryKeys } from '../../lib/queryClient';
-import type { ChatFull } from '../../api/client';
+import type { ChatFull } from '../../api/chats';
 import { MessageItem } from './MessageItem';
 import { MarkdownStyles } from './MarkdownStyles';
 import { CustomCssStyles } from './CustomCssStyles';

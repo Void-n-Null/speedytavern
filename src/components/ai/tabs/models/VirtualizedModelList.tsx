@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import { Check, Brain, Image } from 'lucide-react';
-import { type OpenRouterModel } from '../../../../api/client';
+import { type OpenRouterModel } from '../../../../api/ai';
 import { cn } from '../../../../lib/utils';
 import { ProviderLogo } from '../../ProviderLogo';
 

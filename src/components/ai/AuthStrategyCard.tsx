@@ -2,7 +2,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { toast } from '../ui/toast';
-import { aiProviders } from '../../api/client';
+import { aiProviders } from '../../api/ai';
 import type { SecretDraftKey } from './useAiProvidersModalController';
 
 interface AuthStrategyCardProps {

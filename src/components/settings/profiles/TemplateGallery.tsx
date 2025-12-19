@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Card } from '../GroupRenderer';
-import type { DesignTemplate } from '../../../api/client';
+import type { DesignTemplate } from '../../../api/misc';
 
 interface TemplateGalleryProps {
   templates: DesignTemplate[] | undefined;

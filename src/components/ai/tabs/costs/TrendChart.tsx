@@ -1,4 +1,4 @@
-import { type DailyCostTrend } from '../../../../api/client';
+import { type DailyCostTrend } from '../../../../api/ai';
 import { cn } from '../../../../lib/utils';
 
 interface TrendChartProps {

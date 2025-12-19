@@ -9,7 +9,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FixedSizeList as List } from 'react-window';
 import { Search, Brain, X, ChevronDown, Zap } from 'lucide-react';
-import { openRouterModels, aiProviders, type OpenRouterModel } from '../../api/client';
+import { openRouterModels, aiProviders, type OpenRouterModel } from '../../api/ai';
 import { queryKeys } from '../../lib/queryClient';
 import { cn } from '../../lib/utils';
 import { Input } from '../ui/input';

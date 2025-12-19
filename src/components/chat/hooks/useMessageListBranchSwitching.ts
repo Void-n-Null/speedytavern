@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ChatFull } from '../../../api/client';
+import type { ChatFull } from '../../../api/chats';
 
 type BranchSwitchDirection = 'prev' | 'next';
 

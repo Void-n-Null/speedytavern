@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { type OpenRouterModel } from '../../../../api/client';
+import { type OpenRouterModel } from '../../../../api/ai';
 import { ProviderLogo } from '../../ProviderLogo';
 
 interface RecentModelsGridProps {

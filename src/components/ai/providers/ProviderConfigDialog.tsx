@@ -3,7 +3,7 @@ import {
   Link2, Link2Off, Check, Zap, ExternalLink, 
   Info, ShieldCheck, X, Cpu 
 } from 'lucide-react';
-import { type AiProviderStatus } from '../../../api/client';
+import { type AiProviderStatus } from '../../../api/ai';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../ui/button';
 import { Label } from '../../ui/label';

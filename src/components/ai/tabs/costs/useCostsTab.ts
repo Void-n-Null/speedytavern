@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { aiRequestLogs } from '../../../../api/client';
+import { aiRequestLogs } from '../../../../api/ai';
 import { queryKeys } from '../../../../lib/queryClient';
 
 export type TimeRange = 'today' | 'week' | 'month' | 'all';

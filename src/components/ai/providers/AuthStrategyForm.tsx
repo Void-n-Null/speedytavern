@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Link2, Eye, EyeOff, ExternalLink } from 'lucide-react';
-import { aiProviders } from '../../../api/client';
+import { aiProviders } from '../../../api/ai';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';

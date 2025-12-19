@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { openRouterModels } from '../../../../api/client';
+import { openRouterModels } from '../../../../api/ai';
 import { queryKeys } from '../../../../lib/queryClient';
 import { cn } from '../../../../lib/utils';
 import { Label } from '../../../ui/label';

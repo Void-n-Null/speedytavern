@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { openRouterModels, aiProviders, type OpenRouterModel } from '../../../../api/client';
+import { openRouterModels, aiProviders, type OpenRouterModel } from '../../../../api/ai';
 import { queryKeys } from '../../../../lib/queryClient';
 import { addToRecentModels } from '../../QuickActionsBar';
 

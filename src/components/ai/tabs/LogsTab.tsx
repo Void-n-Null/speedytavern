@@ -10,7 +10,7 @@ import {
   Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Filter,
   AlertCircle, Cpu, DollarSign, RefreshCw
 } from 'lucide-react';
-import { aiRequestLogs, type AiRequestLog } from '../../../api/client';
+import { aiRequestLogs, type AiRequestLog } from '../../../api/ai';
 import { queryKeys } from '../../../lib/queryClient';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../ui/button';

@@ -8,7 +8,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ZapOff, Sparkles } from 'lucide-react';
-import { aiProviders } from '../../../api/client';
+import { aiProviders } from '../../../api/ai';
 import { queryKeys } from '../../../lib/queryClient';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../ui/button';

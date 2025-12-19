@@ -1,5 +1,5 @@
 import { Brain, ArrowRight, Image, Mic, Video, Sparkles } from 'lucide-react';
-import { type OpenRouterModel } from '../../../../api/client';
+import { type OpenRouterModel } from '../../../../api/ai';
 import { cn } from '../../../../lib/utils';
 import { Button } from '../../../ui/button';
 import { ProviderLogo } from '../../ProviderLogo';

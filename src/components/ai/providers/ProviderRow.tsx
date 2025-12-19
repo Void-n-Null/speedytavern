@@ -1,5 +1,5 @@
 import { Check, Settings2, AlertCircle } from 'lucide-react';
-import { type AiProviderStatus } from '../../../api/client';
+import { type AiProviderStatus } from '../../../api/ai';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../ui/button';
 import { ProviderLogo } from '../ProviderLogo';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { aiProviders, type AiProviderStatus } from '../../api/client';
+import { aiProviders, type AiProviderStatus } from '../../api/ai';
 import { queryKeys } from '../../lib/queryClient';
 import { toast } from '../ui/toast';
 

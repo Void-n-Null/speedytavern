@@ -6,7 +6,7 @@
 
 import { Plug, Cpu, DollarSign, ScrollText, ChevronRight, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import type { AiProviderStatus } from '../../api/client';
+import type { AiProviderStatus } from '../../api/ai';
 
 export type AiTabId = 'providers' | 'models' | 'costs' | 'logs';
 

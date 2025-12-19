@@ -1,4 +1,4 @@
-import { type ModelCostBreakdown } from '../../../../api/client';
+import { type ModelCostBreakdown } from '../../../../api/ai';
 
 interface ModelCostBarProps {
   data: ModelCostBreakdown;
