@@ -5,7 +5,7 @@
 
 import type { ChatNode, Speaker } from '../types/chat';
 import type { MessageStyleConfig } from '../types/messageStyle';
-import type { Profile, ProfileMeta, CreateProfileRequest, UpdateProfileRequest } from '../types/profile';
+import type { Profile, ProfileMeta, AiConfig, CreateProfileRequest, UpdateProfileRequest } from '../types/profile';
 
 const API_BASE = '/api';
 
@@ -314,6 +314,9 @@ export const aiProviders = {
       method: 'POST',
     }),
 
+  listModels: (providerId: string) =>
+    api<{ models: { id: string; label: string }[] }>(`/ai/providers/${providerId}/models`),
+
   startOpenRouterPkce: (returnUrl: string) =>
     api<{ authUrl: string; state: string }>(`/ai/providers/openrouter/pkce/start`, {
       method: 'POST',
@@ -521,6 +524,38 @@ export const profiles = {
   activate: (id: string) =>
     api<{ success: boolean; updatedAt: number }>(`/profiles/${id}/activate`, {
       method: 'POST',
+    }),
+
+  addAiConfig: (profileId: string, data: {
+    name: string;
+    providerId: string;
+    authStrategyId: string;
+    modelId: string;
+    params?: Record<string, unknown>;
+    providerConfig?: Record<string, unknown>;
+    isDefault?: boolean;
+  }) =>
+    api<AiConfig>(`/profiles/${profileId}/ai-configs`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateAiConfig: (profileId: string, configId: string, data: {
+    name?: string;
+    modelId?: string;
+    authStrategyId?: string;
+    params?: Record<string, unknown>;
+    providerConfig?: Record<string, unknown>;
+    isDefault?: boolean;
+  }) =>
+    api<AiConfig>(`/profiles/${profileId}/ai-configs/${configId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteAiConfig: (profileId: string, configId: string) =>
+    api<{ success: boolean }>(`/profiles/${profileId}/ai-configs/${configId}`, {
+      method: 'DELETE',
     }),
 };
 

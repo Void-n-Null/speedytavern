@@ -155,3 +155,65 @@ export function useActivateProfile() {
     },
   });
 }
+
+/** Add an AI config to a profile */
+export function useCreateAiConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ profileId, data }: { 
+      profileId: string; 
+      data: {
+        name: string;
+        providerId: string;
+        authStrategyId: string;
+        modelId: string;
+        params?: Record<string, unknown>;
+        providerConfig?: Record<string, unknown>;
+        isDefault?: boolean;
+      } 
+    }) => profiles.addAiConfig(profileId, data),
+    onSuccess: (_, { profileId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles.active() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles.detail(profileId) });
+    },
+  });
+}
+
+/** Update an AI config in a profile */
+export function useUpdateAiConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ profileId, configId, data }: { 
+      profileId: string; 
+      configId: string;
+      data: {
+        name?: string;
+        modelId?: string;
+        authStrategyId?: string;
+        params?: Record<string, unknown>;
+        providerConfig?: Record<string, unknown>;
+        isDefault?: boolean;
+      } 
+    }) => profiles.updateAiConfig(profileId, configId, data),
+    onSuccess: (_, { profileId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles.active() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles.detail(profileId) });
+    },
+  });
+}
+
+/** Delete an AI config from a profile */
+export function useDeleteAiConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ profileId, configId }: { profileId: string; configId: string }) =>
+      profiles.deleteAiConfig(profileId, configId),
+    onSuccess: (_, { profileId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles.active() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles.detail(profileId) });
+    },
+  });
+}
