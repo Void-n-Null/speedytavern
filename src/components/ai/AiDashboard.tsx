@@ -70,11 +70,8 @@ export function AiDashboard({ open, onOpenChange }: AiDashboardProps) {
 
       const strategy = provider.authStrategies.find(s => s.configured) || provider.authStrategies[0];
       
-      // We don't have the available models list here easily, so we use a sane default
-      // based on providerId.
-      let defaultModelId = 'openai/gpt-4o-mini';
-      if (providerId === 'anthropic') defaultModelId = 'claude-3-5-sonnet-20241022';
-      else if (providerId === 'openai') defaultModelId = 'gpt-4o-mini';
+      // Use the default model from provider UI metadata if available, otherwise fallback
+      const defaultModelId = provider.ui?.defaultModelId || 'openai/gpt-4o-mini';
 
       createAiConfig.mutate({
         profileId: profile.id,

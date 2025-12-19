@@ -36,6 +36,7 @@ export function ProviderRow({
       {/* Icon/Logo */}
       <ProviderLogo
         provider={provider.id}
+        ui={provider.ui}
         size="md"
         selected={isActive}
         className={cn(

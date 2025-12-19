@@ -4,6 +4,7 @@ import { cn } from '../../../../lib/utils';
 import { Button } from '../../../ui/button';
 import { ProviderLogo } from '../../ProviderLogo';
 import { CapabilityBadge } from './CapabilityBadge';
+import { useProviderUi } from '../../../../hooks/queries/aiProviders';
 
 interface ActiveModelDashboardProps {
   model: OpenRouterModel;
@@ -14,6 +15,8 @@ export function ActiveModelDashboard({
   model, 
   onChangeModel
 }: ActiveModelDashboardProps) {
+  const [provider] = model.slug.split('/');
+  const ui = useProviderUi(provider);
   const formatContext = (ctx: number) => {
     if (ctx >= 1_000_000) return `${(ctx / 1_000_000).toFixed(1)}M`;
     if (ctx >= 1000) return `${Math.round(ctx / 1000)}K`;
@@ -34,7 +37,6 @@ export function ActiveModelDashboard({
   const outputPrice = model.endpoint?.pricing?.completion;
   const isFree = model.endpoint?.is_free;
   const hasReasoning = model.supports_reasoning || model.endpoint?.supports_reasoning;
-  const [provider] = model.slug.split('/');
   const hasVision = model.input_modalities?.includes('image');
   const hasAudioIn = model.input_modalities?.includes('audio');
   const hasImageOut = model.output_modalities?.includes('image');
@@ -47,7 +49,7 @@ export function ActiveModelDashboard({
         {/* Header row */}
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-4">
-            <ProviderLogo provider={provider} size="lg" />
+            <ProviderLogo provider={provider} ui={ui} size="lg" />
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">{provider}</span>
