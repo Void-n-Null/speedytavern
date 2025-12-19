@@ -4,7 +4,7 @@
  * Sidebar navigation for the AI Dashboard, including provider selection.
  */
 
-import { Plug, Cpu, DollarSign, ScrollText, ChevronRight, Zap, Check } from 'lucide-react';
+import { Plug, Cpu, DollarSign, ScrollText, ChevronRight, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { AiProviderStatus } from '../../api/client';
 
@@ -69,9 +69,6 @@ export function AiDashboardSidebar({
                     <Zap className={cn('h-4 w-4', activeProviderId === p.id ? 'text-violet-400' : 'text-zinc-600')} />
                     <span className="font-medium">{p.label}</span>
                   </div>
-                  {activeProviderId === p.id && (
-                    <Check className="h-3.5 w-3.5" />
-                  )}
                 </button>
               ))
             )}
@@ -175,4 +172,3 @@ function SidebarNavItem({
     </button>
   );
 }
-

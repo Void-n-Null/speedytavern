@@ -13,7 +13,7 @@ import { queryKeys } from '../../../lib/queryClient';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../ui/button';
 import { showToast } from '../../ui/toast';
-import { ProviderTile } from '../providers/ProviderTile';
+import { ProviderRow } from '../providers/ProviderRow';
 import { ProviderConfigDialog } from '../providers/ProviderConfigDialog';
 import { type SecretDraftKey } from '../providers/AuthStrategyForm';
 
@@ -91,9 +91,7 @@ export function ProvidersTab({
     }
 
     // Connect after save
-    setTimeout(() => {
-      connectMutation.mutate({ providerId, authStrategyId: strategyId });
-    }, 100);
+    await connectMutation.mutateAsync({ providerId, authStrategyId: strategyId });
   }, [secretDrafts, setSecretsMutation, connectMutation]);
 
   return (
@@ -138,12 +136,9 @@ export function ProvidersTab({
           </p>
         </div>
       ) : (
-          <div className={cn(
-          'grid gap-4',
-          isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-3'
-          )}>
+          <div className="flex flex-col gap-2">
             {providers.map(provider => (
-              <ProviderTile
+              <ProviderRow
                 key={provider.id}
                 provider={provider}
                 isActive={activeProviderId === provider.id}

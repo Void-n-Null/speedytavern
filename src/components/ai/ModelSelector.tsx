@@ -8,7 +8,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FixedSizeList as List } from 'react-window';
-import { Search, Brain, Check, X, ChevronDown, Zap } from 'lucide-react';
+import { Search, Brain, X, ChevronDown, Zap } from 'lucide-react';
 import { openRouterModels, aiProviders, type OpenRouterModel } from '../../api/client';
 import { queryKeys } from '../../lib/queryClient';
 import { cn } from '../../lib/utils';
@@ -247,8 +247,6 @@ export function ModelSelector({ value, onChange, className, providerId }: ModelS
               {formatContextLength(model.context_length)} ctx • {formatPrice(model.endpoint?.pricing?.prompt)}/M
             </div>
           </div>
-
-          {isSelected && <Check className="h-4 w-4 text-violet-400 shrink-0" />}
         </button>
       </div>
     );
