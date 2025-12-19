@@ -28,6 +28,7 @@ export type AiProvidersModalController = {
   // Actions
   saveSecrets: (authStrategyId: string) => Promise<void>;
   connect: (authStrategyId: string) => Promise<void>;
+  saveAndConnect: (authStrategyId: string) => Promise<void>;
   disconnect: () => Promise<void>;
   startPkce: () => Promise<void>;
   
@@ -174,6 +175,33 @@ export function useAiProvidersModalController(open: boolean): AiProvidersModalCo
     });
   }, [selectedProvider, connectMutation]);
 
+  const saveAndConnect = useCallback(async (authStrategyId: string) => {
+    if (!selectedProvider) return;
+    
+    const strategy = selectedProvider.authStrategies.find(s => s.id === authStrategyId);
+    if (!strategy) return;
+
+    const secrets: Record<string, string> = {};
+    for (const k of strategy.requiredKeys) {
+      const dk: SecretDraftKey = `${selectedProvider.id}:${authStrategyId}:${k}`;
+      const v = (secretDrafts[dk] ?? '').trim();
+      if (v) secrets[k] = v;
+    }
+
+    if (Object.keys(secrets).length > 0) {
+      await setSecretsMutation.mutateAsync({
+        providerId: selectedProvider.id,
+        authStrategyId,
+        secrets,
+      });
+    }
+
+    await connectMutation.mutateAsync({
+      providerId: selectedProvider.id,
+      authStrategyId,
+    });
+  }, [selectedProvider, secretDrafts, setSecretsMutation, connectMutation]);
+
   const disconnect = useCallback(async () => {
     if (!selectedProvider) return;
     await disconnectMutation.mutateAsync({ providerId: selectedProvider.id });
@@ -202,6 +230,7 @@ export function useAiProvidersModalController(open: boolean): AiProvidersModalCo
     clearSecretDrafts,
     saveSecrets,
     connect,
+    saveAndConnect,
     disconnect,
     startPkce,
     selectedModelId,
@@ -211,4 +240,3 @@ export function useAiProvidersModalController(open: boolean): AiProvidersModalCo
     isDisconnecting: disconnectMutation.isPending,
   };
 }
-
