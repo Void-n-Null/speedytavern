@@ -18,9 +18,10 @@ import { FilterPill } from './models/FilterPill';
 interface ModelsTabProps {
   isMobile: boolean;
   activeProviderId?: string | null;
+  activeProviderLabel?: string | null;
 }
 
-export function ModelsTab({ isMobile, activeProviderId }: ModelsTabProps) {
+export function ModelsTab({ isMobile, activeProviderId, activeProviderLabel }: ModelsTabProps) {
   const {
     mode,
     setMode,
@@ -95,7 +96,7 @@ export function ModelsTab({ isMobile, activeProviderId }: ModelsTabProps) {
               </div>
             </div>
             <p className="text-sm text-zinc-500 mb-4">
-              Model data not available in current catalog. This may be a custom or unlisted model.
+              This model is not supported by {activeProviderLabel || activeProviderId || 'the selected provider'}.
             </p>
             <Button variant="outline" onClick={() => setMode('browse')}>
               Select Different Model
@@ -168,24 +169,26 @@ export function ModelsTab({ isMobile, activeProviderId }: ModelsTabProps) {
           )}
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          <FilterPill active={!providerFilter} onClick={() => setProviderFilter(null)} label="All Providers" />
-          {['openai', 'anthropic', 'google', 'x-ai', 'meta', 'mistral', 'deepseek'].map(p => (
+        {(activeProviderId === 'openrouter' || !activeProviderId) && (
+          <div className="flex gap-2 flex-wrap">
+            <FilterPill active={!providerFilter} onClick={() => setProviderFilter(null)} label="All Providers" />
+            {['openai', 'anthropic', 'google', 'x-ai', 'meta', 'mistral', 'deepseek'].map(p => (
+              <FilterPill
+                key={p}
+                active={providerFilter === p}
+                onClick={() => setProviderFilter(providerFilter === p ? null : p)}
+                label={p === 'xai' ? 'xAI' : p.charAt(0).toUpperCase() + p.slice(1)}
+              />
+            ))}
+            <div className="w-px h-7 bg-zinc-800 mx-1 self-center" />
             <FilterPill
-              key={p}
-              active={providerFilter === p}
-              onClick={() => setProviderFilter(providerFilter === p ? null : p)}
-              label={p === 'xai' ? 'xAI' : p.charAt(0).toUpperCase() + p.slice(1)}
+              active={showFreeOnly}
+              onClick={() => setShowFreeOnly(!showFreeOnly)}
+              label="Free Only"
+              icon={<DollarSign className="h-3.5 w-3.5" />}
             />
-          ))}
-          <div className="w-px h-7 bg-zinc-800 mx-1 self-center" />
-          <FilterPill
-            active={showFreeOnly}
-            onClick={() => setShowFreeOnly(!showFreeOnly)}
-            label="Free Only"
-            icon={<DollarSign className="h-3.5 w-3.5" />}
-          />
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Model List */}

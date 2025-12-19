@@ -43,6 +43,10 @@ export function AiDashboard({ open, onOpenChange }: AiDashboardProps) {
   );
 
   const activeProviderId = activeAiConfig?.providerId || null;
+  const activeProviderLabel = useMemo(() => 
+    providers.find(p => p.id === activeProviderId)?.label || null,
+    [providers, activeProviderId]
+  );
 
   const handleActiveProviderChange = (providerId: string) => {
     if (!profile) return;
@@ -160,7 +164,11 @@ export function AiDashboard({ open, onOpenChange }: AiDashboardProps) {
               "h-full transition-all duration-200",
               activeTab === 'models' ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none absolute inset-0"
             )}>
-              <ModelsTab isMobile={isMobile} activeProviderId={activeProviderId} />
+              <ModelsTab 
+                isMobile={isMobile} 
+                activeProviderId={activeProviderId} 
+                activeProviderLabel={activeProviderLabel}
+              />
             </div>
             
             <div className={cn(
