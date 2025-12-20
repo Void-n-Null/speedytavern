@@ -64,7 +64,14 @@
     "titleText": "TavernStudio",
     "titleColor": "#ffffff",
     "titleSizePx": 14,
-    "settingsButtonVariant": "secondary"
+    "settingsButtonVariant": "secondary",
+    "layoutAlignment": "between",
+    "buttonPaddingX": 10,
+    "buttonPaddingY": 10,
+    "buttonShowIcon": true,
+    "buttonShowLabel": false,
+    "buttonLabelSizePx": 12,
+    "buttonUseTransparentBackground": false
   },
   "avatar": {
     "shape": "rounded",

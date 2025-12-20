@@ -100,6 +100,13 @@ export interface HeaderConfig {
   titleSizePx: number;
 
   settingsButtonVariant: HeaderSettingsButtonVariant;
+  layoutAlignment: 'between' | 'center';
+  buttonPaddingX: number;
+  buttonPaddingY: number;
+  buttonShowIcon: boolean;
+  buttonShowLabel: boolean;
+  buttonLabelSizePx: number;
+  buttonUseTransparentBackground: boolean;
 }
 
 // ============ Avatar ============

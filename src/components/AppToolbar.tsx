@@ -6,6 +6,7 @@ import { useHeaderConfig, useLayoutConfig } from '../hooks/queries/useProfiles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PromptEngineeringModal } from './prompt-engineering/PromptEngineeringModal';
 import { AiDashboard } from './ai/AiDashboard';
+import { cn } from '../lib/utils';
 
 interface AppToolbarProps {
   onOpenSettings: () => void;
@@ -118,9 +119,35 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
     isMobile,
   ]);
 
+  const buttonStyle: React.CSSProperties = useMemo(() => ({
+    paddingLeft: header.buttonPaddingX,
+    paddingRight: header.buttonPaddingX,
+    paddingTop: header.buttonPaddingY,
+    paddingBottom: header.buttonPaddingY,
+    backgroundColor: header.buttonUseTransparentBackground ? 'transparent' : undefined,
+    fontSize: header.buttonLabelSizePx,
+    height: 'auto',
+    width: 'auto',
+    minWidth: 0,
+  }), [
+    header.buttonPaddingX,
+    header.buttonPaddingY,
+    header.buttonUseTransparentBackground,
+    header.buttonLabelSizePx
+  ]);
+
   const headerContent = (
-    <div className="flex items-center justify-between gap-3" style={innerStyle}>
-      <div className="flex min-w-0 items-center gap-3 h-full">
+    <div
+      className={cn(
+        "flex items-center gap-3",
+        header.layoutAlignment === 'center' ? "justify-center" : "justify-between"
+      )}
+      style={innerStyle}
+    >
+      <div className={cn(
+        "flex min-w-0 items-center gap-3 h-full",
+        header.layoutAlignment === 'center' && "shrink-0"
+      )}>
         {header.showLogo ? (
           <img
             src={header.logoUrl || '/logo.png'}
@@ -139,55 +166,63 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className={cn(
+        "flex items-center gap-2",
+        header.layoutAlignment === 'center' && "shrink-0"
+      )}>
         {isInChat && (
           <Link to="/">
             <Button
               variant={header.settingsButtonVariant}
-              size="icon"
-              className="shrink-0"
+              className="shrink-0 flex items-center gap-2"
+              style={buttonStyle}
               aria-label="Back to Chats"
             >
-              <MessageSquare className="h-5 w-5" />
+              {header.buttonShowIcon && <MessageSquare className="h-5 w-5" />}
+              {header.buttonShowLabel && <span>Chats</span>}
             </Button>
           </Link>
         )}
         <Link to="/forge">
           <Button
             variant={header.settingsButtonVariant}
-            size="icon"
-            className="shrink-0"
+            className="shrink-0 flex items-center gap-2"
+            style={buttonStyle}
             aria-label="Character Forge"
           >
-            <Users className="h-5 w-5" />
+            {header.buttonShowIcon && <Users className="h-5 w-5" />}
+            {header.buttonShowLabel && <span>Forge</span>}
           </Button>
         </Link>
         <Button
           onClick={() => setIsAiProvidersOpen(true)}
           variant={header.settingsButtonVariant}
-          size="icon"
-          className="shrink-0"
+          className="shrink-0 flex items-center gap-2"
+          style={buttonStyle}
           aria-label="AI Providers"
         >
-          <Plug className="h-5 w-5" />
+          {header.buttonShowIcon && <Plug className="h-5 w-5" />}
+          {header.buttonShowLabel && <span>AI</span>}
         </Button>
         <Button
           onClick={() => setIsPromptEngineeringOpen(true)}
           variant={header.settingsButtonVariant}
-          size="icon"
-          className="shrink-0"
+          className="shrink-0 flex items-center gap-2"
+          style={buttonStyle}
           aria-label="Prompt engineering"
         >
-          <Wand2 className="h-5 w-5" />
+          {header.buttonShowIcon && <Wand2 className="h-5 w-5" />}
+          {header.buttonShowLabel && <span>Prompt</span>}
         </Button>
         <Button
           onClick={onOpenSettings}
           variant={header.settingsButtonVariant}
-          size="icon"
-          className="shrink-0"
+          className="shrink-0 flex items-center gap-2"
+          style={buttonStyle}
           aria-label="Open settings"
         >
-          <Settings className="h-5 w-5" />
+          {header.buttonShowIcon && <Settings className="h-5 w-5" />}
+          {header.buttonShowLabel && <span>Settings</span>}
         </Button>
       </div>
     </div>
