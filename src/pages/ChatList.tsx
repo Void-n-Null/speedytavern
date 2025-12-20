@@ -416,3 +416,4 @@ function CharacterAvatar({ character, size, className }: CharacterAvatarProps) {
   );
 }
 
+
