@@ -1,5 +1,5 @@
-import { Settings, Users, Wand2, Plug } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Settings, Users, Wand2, Plug, MessageSquare } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useHeaderConfig, useLayoutConfig } from '../hooks/queries/useProfiles';
@@ -49,8 +49,12 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
   const isMobile = useIsMobile();
   const layout = useLayoutConfig();
   const header = useHeaderConfig();
+  const location = useLocation();
   const [isPromptEngineeringOpen, setIsPromptEngineeringOpen] = useState(false);
   const [isAiProvidersOpen, setIsAiProvidersOpen] = useState(false);
+
+  // Determine if we're in a chat page (show back button)
+  const isInChat = location.pathname.startsWith('/chats/');
 
   const toolbarStyle: React.CSSProperties = useMemo(() => ({
     width: isMobile || header.widthMode === 'full' ? '100%' : `${layout.containerWidth + 5}%`,
@@ -136,6 +140,18 @@ export function AppToolbar({ onOpenSettings }: AppToolbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {isInChat && (
+          <Link to="/">
+            <Button
+              variant={header.settingsButtonVariant}
+              size="icon"
+              className="shrink-0"
+              aria-label="Back to Chats"
+            >
+              <MessageSquare className="h-5 w-5" />
+            </Button>
+          </Link>
+        )}
         <Link to="/forge">
           <Button
             variant={header.settingsButtonVariant}
