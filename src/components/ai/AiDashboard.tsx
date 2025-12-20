@@ -96,14 +96,14 @@ export function AiDashboard({ open, onOpenChange }: AiDashboardProps) {
         return;
       }
 
-      const strategy = provider.authStrategies.find(s => s.configured) || provider.authStrategies[0];
+      const strategy = provider.authStrategies.find(s => s.configured) || provider.authStrategies[0] || null;
       
       createAiConfig.mutate({
         profileId: profile.id,
         data: {
           name: `${provider.label} Config`,
           providerId,
-          authStrategyId: strategy.id,
+          authStrategyId: strategy?.id ?? 'none',
           isDefault: true // This will also set it as active profile config
         }
       }, {

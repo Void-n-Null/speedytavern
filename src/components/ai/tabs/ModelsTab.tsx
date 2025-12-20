@@ -5,7 +5,7 @@
  * Shows detailed stats, capabilities, and allows model selection.
  */
 
-import { Search, Cpu, ArrowLeft, DollarSign, RefreshCw, Zap, X } from 'lucide-react';
+import { Search, Cpu, ArrowLeft, DollarSign, RefreshCw, AlertCircle, X } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
@@ -14,7 +14,10 @@ import { ActiveModelDashboard } from './models/ActiveModelDashboard';
 import { RecentModelsGrid } from './models/RecentModelsGrid';
 import { VirtualizedModelList } from './models/VirtualizedModelList';
 import { FilterPill } from './models/FilterPill';
+import { ProviderRoutingConfig } from './models/ProviderRoutingConfig';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import { useActiveProfile, useUpdateAiConfig } from '../../../hooks/queries/profiles';
+import type { OpenRouterProviderConfig } from '../../../types/profile';
 
 interface ModelsTabProps {
   activeProviderId?: string | null;
@@ -49,6 +52,23 @@ export function ModelsTab({
     handleSelectModel,
     refetchOpenRouter,
   } = useModelsTab({ activeProviderId, selectedModelId, onSelectModel });
+
+  // Get profile and AI config for provider routing configuration
+  const { data: profile } = useActiveProfile();
+  const updateAiConfig = useUpdateAiConfig();
+  
+  const activeAiConfig = profile?.aiConfigs.find(c => c.id === profile.activeAiConfigId);
+  const providerRoutingConfig = (activeAiConfig?.providerConfig ?? {}) as OpenRouterProviderConfig;
+
+  const handleProviderRoutingChange = (newConfig: OpenRouterProviderConfig) => {
+    if (!profile || !activeAiConfig) return;
+    
+    updateAiConfig.mutate({
+      profileId: profile.id,
+      configId: activeAiConfig.id,
+      data: { providerConfig: newConfig as Record<string, unknown> },
+    });
+  };
 
   // ============ DASHBOARD MODE ============
   if (mode === 'dashboard') {
@@ -90,13 +110,13 @@ export function ModelsTab({
             onChangeModel={() => setMode('browse')}
           />
         ) : selectedModelId ? (
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8">
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.03] p-8">
             <div className="flex items-center gap-4 mb-6">
-              <div className="h-14 w-14 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                <Zap className="h-7 w-7 text-violet-400" />
+              <div className="h-14 w-14 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                <AlertCircle className="h-7 w-7" />
               </div>
               <div>
-                <div className="text-xs font-bold uppercase text-zinc-500 mb-1">
+                <div className="text-xs font-bold uppercase text-red-500/60 mb-1">
                   {selectedModelId.split('/')[0]}
                 </div>
                 <h3 className="text-xl font-bold text-zinc-100">
@@ -104,11 +124,16 @@ export function ModelsTab({
                 </h3>
               </div>
             </div>
-            <p className="text-sm text-zinc-500 mb-4">
-              This model is not supported by {activeProviderLabel || activeProviderId || 'the selected provider'}.
+            <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
+              This model is not supported by <span className="text-zinc-100 font-bold">{activeProviderLabel || activeProviderId || 'the selected provider'}</span>. 
+              Please choose a model that is compatible with your active connection.
             </p>
-            <Button variant="outline" onClick={() => setMode('browse')}>
-              Select Different Model
+            <Button 
+              variant="outline" 
+              onClick={() => setMode('browse')}
+              className="border-zinc-800 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+            >
+              Select Compatible Model
             </Button>
           </div>
         ) : (
@@ -125,10 +150,24 @@ export function ModelsTab({
           </div>
         )}
 
+        {/* OpenRouter Provider Routing Configuration */}
+        {activeProviderId === 'openrouter' && (
+          <div className="mt-6">
+            <ProviderRoutingConfig
+              config={providerRoutingConfig}
+              onChange={handleProviderRoutingChange}
+              disabled={updateAiConfig.isPending}
+              supportedProviders={currentModel?.default_order}
+              currentProviderSlug={currentModel?.endpoint?.provider_slug}
+              allProviderSlugs={models.map(m => m.endpoint?.provider_slug).filter(Boolean) as string[]}
+            />
+          </div>
+        )}
+
         {/* Recent Models */}
         <RecentModelsGrid 
           onSelect={handleSelectModel}
-          currentSlug={selectedModelId}
+          currentSlug={selectedModelId ?? null}
           allModels={models}
         />
       </div>
@@ -222,7 +261,7 @@ export function ModelsTab({
         ) : (
           <VirtualizedModelList
             models={filteredModels}
-            selectedSlug={selectedModelId}
+            selectedSlug={selectedModelId ?? null}
             onSelect={handleSelectModel}
             isMobile={isMobile}
           />

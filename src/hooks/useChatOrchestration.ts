@@ -247,6 +247,33 @@ export function useChatOrchestration(): ChatOrchestrationResult {
         messages, 
         params: activeAiConfig.params as GenerateRequest['params'],
       };
+
+      // Add OpenRouter-specific provider routing config if using OpenRouter
+      if (activeAiConfig.providerId === 'openrouter') {
+        const providerConfig = activeAiConfig.providerConfig;
+        // Only include if there are actual routing options set
+        const hasRoutingConfig = providerConfig && (
+          (providerConfig.order as string[] | undefined)?.length ||
+          (providerConfig.ignore as string[] | undefined)?.length ||
+          (providerConfig.allow as string[] | undefined)?.length ||
+          providerConfig.allowFallbacks === false ||
+          providerConfig.requireParameters === true ||
+          (providerConfig.quantizations as string[] | undefined)?.length
+        );
+        
+        if (hasRoutingConfig) {
+          request.openRouterConfig = {
+            provider: {
+              order: providerConfig.order as string[] | undefined,
+              ignore: providerConfig.ignore as string[] | undefined,
+              allow: providerConfig.allow as string[] | undefined,
+              allow_fallbacks: providerConfig.allowFallbacks as boolean | undefined,
+              require_parameters: providerConfig.requireParameters as boolean | undefined,
+              quantizations: providerConfig.quantizations as string[] | undefined,
+            },
+          };
+        }
+      }
       
       console.log('[orchestration] Sending request to:', activeAiConfig.providerId, providerModelId);
       

@@ -42,41 +42,41 @@ export function useModelsTab({ activeProviderId, selectedModelId, onSelectModel 
     const orModels = openRouterModelsData ?? [];
     const pModels = providerModelsData ?? [];
 
-    if (activeProviderId && activeProviderId !== 'openrouter' && pModels.length > 0) {
-      return pModels
-        .map(pm => {
-          const cleanedPmId = cleanModelId(pm.id);
-          
-          const match = orModels.find(om => {
-            if (om.slug === pm.id) return true;
-            if (om.slug === `${activeProviderId}/${pm.id}`) return true;
-            if (om.slug.endsWith(`/${pm.id}`)) return true;
-            
-            const omModelPart = om.slug.split('/').pop() || om.slug;
-            const cleanedOmId = cleanModelId(omModelPart);
-            return cleanedOmId === cleanedPmId;
-          });
+    // For non-OpenRouter providers, ONLY show the provider's own model list.
+    // (Do not fall back to the full OpenRouter catalog when the provider returns 0 models.)
+    if (activeProviderId && activeProviderId !== 'openrouter') {
+      return pModels.map((pm) => {
+        const cleanedPmId = cleanModelId(pm.id);
 
-          if (match) {
-            return { ...match, name: pm.label || match.name };
-          }
+        const match = orModels.find((om) => {
+          if (om.slug === pm.id) return true;
+          if (om.slug === `${activeProviderId}/${pm.id}`) return true;
+          if (om.slug.endsWith(`/${pm.id}`)) return true;
 
-          return {
-            slug: pm.id.includes('/') ? pm.id : `${activeProviderId}/${pm.id}`,
-            name: pm.label,
-            short_name: pm.label,
-            author: activeProviderId,
-            description: '',
-            context_length: 128000,
-            input_modalities: ['text'],
-            output_modalities: ['text'],
-            group: activeProviderId,
-            supports_reasoning: false,
-            hidden: false,
-            permaslug: pm.id,
-          } as OpenRouterModel;
-        })
-        .filter(m => !m.endpoint?.is_free);
+          const omModelPart = om.slug.split('/').pop() || om.slug;
+          const cleanedOmId = cleanModelId(omModelPart);
+          return cleanedOmId === cleanedPmId;
+        });
+
+        if (match) {
+          return { ...match, name: pm.label || match.name };
+        }
+
+        return {
+          slug: pm.id.includes('/') ? pm.id : `${activeProviderId}/${pm.id}`,
+          name: pm.label,
+          short_name: pm.label,
+          author: activeProviderId,
+          description: '',
+          context_length: 128000,
+          input_modalities: ['text'],
+          output_modalities: ['text'],
+          group: activeProviderId,
+          supports_reasoning: false,
+          hidden: false,
+          permaslug: pm.id,
+        } as OpenRouterModel;
+      });
     }
 
     return orModels;

@@ -8,7 +8,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FixedSizeList as List } from 'react-window';
-import { Search, Brain, X, ChevronDown, Zap } from 'lucide-react';
+import { Search, Brain, X, ChevronDown, Cpu } from 'lucide-react';
 import { openRouterModels, aiProviders, type OpenRouterModel } from '../../api/ai';
 import { queryKeys } from '../../lib/queryClient';
 import { cn } from '../../lib/utils';
@@ -85,44 +85,44 @@ export function ModelSelector({ value, onChange, className, providerId }: ModelS
     const orModels = openRouterModelsData ?? [];
     const pModels = providerModelsData ?? [];
 
-    if (providerId && providerId !== 'openrouter' && pModels.length > 0) {
-      return pModels
-        .map(pm => {
-          const cleanedPmId = cleanModelId(pm.id);
-          
-          // Try to find matching model in OpenRouter catalog
-          const match = orModels.find(om => {
-            // Exact matches
-            if (om.slug === pm.id) return true;
-            if (om.slug === `${providerId}/${pm.id}`) return true;
-            if (om.slug.endsWith(`/${pm.id}`)) return true;
-            
-            // Fuzzy match: clean both IDs and compare
-            const omModelPart = om.slug.split('/').pop() || om.slug;
-            const cleanedOmId = cleanModelId(omModelPart);
-            return cleanedOmId === cleanedPmId;
-          });
+    // For non-OpenRouter providers, ONLY show the provider's own model list.
+    // (Do not fall back to the full OpenRouter catalog when the provider returns 0 models.)
+    if (providerId && providerId !== 'openrouter') {
+      return pModels.map((pm) => {
+        const cleanedPmId = cleanModelId(pm.id);
 
-          if (match) {
-            return { ...match, name: pm.label || match.name };
-          }
+        // Try to find matching model in OpenRouter catalog for richer metadata (optional)
+        const match = orModels.find((om) => {
+          // Exact matches
+          if (om.slug === pm.id) return true;
+          if (om.slug === `${providerId}/${pm.id}`) return true;
+          if (om.slug.endsWith(`/${pm.id}`)) return true;
 
-          return {
-            slug: pm.id.includes('/') ? pm.id : `${providerId}/${pm.id}`,
-            name: pm.label,
-            short_name: pm.label,
-            author: providerId,
-            description: '',
-            context_length: 128000,
-            input_modalities: ['text'],
-            output_modalities: ['text'],
-            group: providerId,
-            supports_reasoning: false,
-            hidden: false,
-            permaslug: pm.id,
-          } as OpenRouterModel;
-        })
-        .filter(m => !m.endpoint?.is_free);
+          // Fuzzy match: clean both IDs and compare
+          const omModelPart = om.slug.split('/').pop() || om.slug;
+          const cleanedOmId = cleanModelId(omModelPart);
+          return cleanedOmId === cleanedPmId;
+        });
+
+        if (match) {
+          return { ...match, name: pm.label || match.name };
+        }
+
+        return {
+          slug: pm.id.includes('/') ? pm.id : `${providerId}/${pm.id}`,
+          name: pm.label,
+          short_name: pm.label,
+          author: providerId,
+          description: '',
+          context_length: 128000,
+          input_modalities: ['text'],
+          output_modalities: ['text'],
+          group: providerId,
+          supports_reasoning: false,
+          hidden: false,
+          permaslug: pm.id,
+        } as OpenRouterModel;
+      });
     }
 
     return orModels;
@@ -276,7 +276,7 @@ export function ModelSelector({ value, onChange, className, providerId }: ModelS
         ) : (
           <>
             <div className="h-9 w-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
-              <Zap className="h-4 w-4 text-zinc-500" />
+              <Cpu className="h-4 w-4 text-zinc-500" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm text-zinc-400">Select a model...</div>

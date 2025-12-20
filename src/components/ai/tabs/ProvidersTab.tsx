@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, ZapOff, Sparkles } from 'lucide-react';
+import { RefreshCw, Globe, Sparkles } from 'lucide-react';
 import { aiProviders } from '../../../api/ai';
 import { queryKeys } from '../../../lib/queryClient';
 import { cn } from '../../../lib/utils';
@@ -129,7 +129,7 @@ export function ProvidersTab({
         </div>
       ) : providers.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 bg-zinc-900/20 rounded-3xl border border-dashed border-zinc-800/60 p-12">
-          <ZapOff className="h-12 w-12 text-zinc-800 mb-4" />
+          <Globe className="h-12 w-12 text-zinc-800 mb-4" />
           <h4 className="text-zinc-200 font-bold text-lg mb-1">No Providers Found</h4>
           <p className="text-sm text-center max-w-xs leading-relaxed">
             We couldn't find any AI providers in the registry. Check your server configuration.
