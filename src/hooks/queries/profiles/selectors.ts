@@ -190,3 +190,13 @@ export function useFullConfig(): MessageStyleConfig {
   });
   return data ?? defaultMessageStyleConfig;
 }
+
+/** Profile name (User Name) */
+export function useProfileName(): string {
+  const { data } = useQuery({
+    queryKey: queryKeys.profiles.active(),
+    queryFn: () => profiles.getActive(),
+    select: (profile) => profile?.name ?? 'User',
+  });
+  return data ?? 'User';
+}

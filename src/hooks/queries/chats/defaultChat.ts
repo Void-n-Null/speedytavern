@@ -111,6 +111,16 @@ export function useServerChat() {
   };
 }
 
+/** Get the primary character name for macros */
+export function useCharacterName() {
+  const { speakers } = useServerChat();
+  const botSpeaker = useMemo(() => 
+    Array.from(speakers.values()).find(s => !s.is_user),
+    [speakers]
+  );
+  return botSpeaker?.name ?? 'Character';
+}
+
 export function useServerChatStatus(): { isLoading: boolean; error: Error | null } {
   const contextChatId = useChatId();
   const { data: defaultChatData, isLoading: isLoadingId, error: defaultChatError } = useDefaultChatId();
