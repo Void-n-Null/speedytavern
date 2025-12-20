@@ -11,7 +11,7 @@ import type { TavernCard } from '../types/characterCard';
 import { replaceMacros, type MacroReplacements } from './macros';
 
 export interface ChatPromptResult {
-  system?: string;
+  /** All messages including system prompt at start, prefill at end */
   messages: ModelMessage[];
 }
 
@@ -29,25 +29,25 @@ export interface PromptFactoryContext {
 export class PromptFactory {
   /**
    * Create a ChatPromptResult for Chat Completion APIs.
+   * Returns ONLY a messages array - system prompt is role: "system", prefill is role: "assistant" at the end.
    */
   static createChatPrompt(context: PromptFactoryContext): ChatPromptResult {
     const { preset, history, speakers } = context;
     const layout = preset.promptLayout;
     if (!layout) {
-      return { messages: this.createDefaultChatPrompt(history, speakers) };
+      return this.createDefaultChatPromptWithCharacter(context);
     }
 
     const replacements = this.buildReplacements(context);
     const messages: ModelMessage[] = [];
-    let systemPrompt = '';
 
-    // If flattening, we build one big string for the user message
-    // but we STILL keep the system prompt separate if the model supports it.
+    // If flattening, build one big string
     if (layout.flatten) {
       const allText = this.createTextPrompt(context);
       return { messages: [{ role: 'user', content: allText }] };
     }
 
+    // Process blocks in order - system content goes into messages with role: "system"
     for (const block of layout.blocks) {
       if (!block.enabled) continue;
 
@@ -57,19 +57,12 @@ export class PromptFactory {
         const content = this.renderBlock(block, context, replacements);
         if (content.trim()) {
           const role = this.getRoleForBlock(block.id);
-          if (role === 'system') {
-            systemPrompt += (systemPrompt ? '\n\n' : '') + content;
-          } else {
-            messages.push({ role, content } as ModelMessage);
-          }
+          messages.push({ role, content } as ModelMessage);
         }
       }
     }
 
-    return {
-      system: systemPrompt || undefined,
-      messages: this.mergeConsecutiveRoles(messages),
-    };
+    return { messages: this.mergeConsecutiveRoles(messages) };
   }
 
   /**
@@ -280,8 +273,77 @@ export class PromptFactory {
     return flattened;
   }
 
-  private static createDefaultChatPrompt(history: ChatNode[], speakers: Map<string, Speaker>): ModelMessage[] {
-    return this.renderHistoryAsMessages(history, speakers);
+  /**
+   * Creates a chat prompt with character information included, 
+   * used when no custom prompt layout is configured.
+   * Returns ONLY messages array - everything is a message with a role.
+   */
+  private static createDefaultChatPromptWithCharacter(context: PromptFactoryContext): ChatPromptResult {
+    const { preset, history, speakers, charCard, charId, userId } = context;
+    const messages: ModelMessage[] = [];
+    const replacements = this.buildReplacements(context);
+    
+    // Get character and user names
+    const charSpeaker = speakers.get(charId);
+    const userSpeaker = speakers.get(userId);
+    const charName = charSpeaker?.name || 'Assistant';
+    const userName = userSpeaker?.name || 'User';
+    
+    // Build system content
+    const systemParts: string[] = [];
+    
+    if (preset.sysprompt?.content) {
+      systemParts.push(preset.sysprompt.content);
+    }
+    
+    const description = this.getCardField(charCard, 'description');
+    if (description) {
+      systemParts.push(`## Character: ${charName}\n${description}`);
+    }
+    
+    const personality = this.getCardField(charCard, 'personality');
+    if (personality) {
+      systemParts.push(`## Personality\n${personality}`);
+    }
+    
+    const scenario = this.getCardField(charCard, 'scenario');
+    if (scenario) {
+      systemParts.push(`## Scenario\n${scenario}`);
+    }
+    
+    const mesExample = this.getCardField(charCard, 'mes_example');
+    if (mesExample) {
+      systemParts.push(`## Example Dialogue\n${mesExample}`);
+    }
+    
+    if (systemParts.length === 0) {
+      systemParts.push(`You are ${charName}, engaged in a roleplay conversation with ${userName}. Stay in character and respond naturally.`);
+    }
+    
+    // Add system as first message
+    const systemContent = replaceMacros(systemParts.join('\n\n'), replacements);
+    messages.push({ role: 'system', content: systemContent } as SystemModelMessage);
+    
+    // Add chat history
+    messages.push(...this.renderHistoryAsMessages(history, speakers));
+    
+    // Add post-history as system message if present
+    if (preset.sysprompt?.post_history) {
+      const postHistory = replaceMacros(preset.sysprompt.post_history, replacements);
+      if (postHistory.trim()) {
+        messages.push({ role: 'system', content: postHistory } as SystemModelMessage);
+      }
+    }
+    
+    // Add prefill as assistant message at the END (model continues from this)
+    if (preset.sysprompt?.prefill) {
+      const prefill = replaceMacros(preset.sysprompt.prefill, replacements);
+      if (prefill.trim()) {
+        messages.push({ role: 'assistant', content: prefill } as AssistantModelMessage);
+      }
+    }
+    
+    return { messages: this.mergeConsecutiveRoles(messages) };
   }
 
   private static getDefaultBlocks(): PromptBlock[] {
