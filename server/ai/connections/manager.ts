@@ -22,17 +22,29 @@ function classifyAuthError(err: any): 'error_auth' | 'error_other' {
  * Connect (validate credentials) and cache a provider client instance.
  * This does NOT start any model streams; it just confirms auth works.
  */
-export async function connectProvider(providerId: string, authStrategyId: string): Promise<void> {
+export async function connectProvider(providerId: string, authStrategyId: string | null): Promise<void> {
   const def = getProviderOrThrow(providerId);
-  const strategy = def.authStrategies.find((s) => s.id === authStrategyId);
-  if (!strategy) throw new Error(`Unknown auth strategy: ${authStrategyId}`);
 
-  // Ensure required secrets exist.
   const secrets: Record<string, string> = {};
-  for (const key of strategy.requiredSecretKeys) {
-    const val = getProviderSecret(providerId, authStrategyId, key);
-    if (!val) throw new Error(`Missing ${key} secret for this strategy`);
-    secrets[key] = val;
+
+  // Providers can optionally have zero auth strategies (no-auth).
+  let effectiveAuthStrategyId: string | null = authStrategyId;
+  if (def.authStrategies.length > 0) {
+    const desiredId = authStrategyId ?? def.authStrategies[0]?.id ?? null;
+    if (!desiredId) throw new Error(`Missing auth strategy id for provider: ${providerId}`);
+
+    const strategy = def.authStrategies.find((s) => s.id === desiredId);
+    if (!strategy) throw new Error(`Unknown auth strategy: ${desiredId}`);
+    effectiveAuthStrategyId = desiredId;
+
+    // Ensure required secrets exist.
+    for (const key of strategy.requiredSecretKeys) {
+      const val = getProviderSecret(providerId, desiredId, key);
+      if (!val) throw new Error(`Missing ${key} secret for this strategy`);
+      secrets[key] = val;
+    }
+  } else {
+    effectiveAuthStrategyId = null;
   }
 
   // Parse config to get base URLs / headers if needed.
@@ -52,7 +64,7 @@ export async function connectProvider(providerId: string, authStrategyId: string
 
     // 3. Update connection status
     upsertProviderConnection(providerId, {
-      auth_strategy_id: authStrategyId,
+      auth_strategy_id: effectiveAuthStrategyId,
       status: 'connected',
       last_error: null,
       last_validated_at: Date.now(),
@@ -62,7 +74,7 @@ export async function connectProvider(providerId: string, authStrategyId: string
     const last_error = e instanceof Error ? e.message : String(e);
     
     upsertProviderConnection(providerId, {
-      auth_strategy_id: authStrategyId,
+      auth_strategy_id: effectiveAuthStrategyId,
       status,
       last_error: last_error.slice(0, 500),
       last_validated_at: null,

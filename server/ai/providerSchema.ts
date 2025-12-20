@@ -57,7 +57,7 @@ export type AiProviderDefinition = {
    * List models available for this provider.
    * Can be static or dynamic (calling the provider API if connected).
    */
-  listModels?: (secrets: Record<string, string>) => Promise<{ id: string; label: string }[]>;
+  listModels?: (secrets: Record<string, string>, config: any) => Promise<{ id: string; label: string }[]>;
 
   /**
    * Factory for the AI SDK provider instance.
