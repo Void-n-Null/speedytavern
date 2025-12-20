@@ -19,6 +19,8 @@ import type { ChatNode } from '../types/chat';
 import type { TavernCard } from '../types/characterCard';
 import type { PromptEngineeringPreset } from '../types/promptEngineering';
 import { showToast } from '../components/ui/toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { resolveModelForProvider } from '../utils/modelMapping';
 
 export interface ChatOrchestrationResult {
   /** Whether generation is currently in progress */
@@ -103,6 +105,7 @@ function getDefaultPreset(): PromptEngineeringPreset {
  * Handles the complete flow from building prompts to streaming responses.
  */
 export function useChatOrchestration(): ChatOrchestrationResult {
+  const queryClient = useQueryClient();
   const streaming = useStreaming();
   const serverChat = useServerChat();
   const { data: profile } = useActiveProfile();
@@ -124,8 +127,6 @@ export function useChatOrchestration(): ChatOrchestrationResult {
   }, [charCardRecord?.raw_json]);
   
   // Use refs to avoid stale closures in setTimeout callbacks
-  // This is critical because generate() is called from setTimeout after
-  // the user's message is added, and we need the LATEST values
   const serverChatRef = useRef(serverChat);
   const profileRef = useRef(profile);
   const promptEngineeringStoreRef = useRef(promptEngineeringStore);
@@ -157,8 +158,21 @@ export function useChatOrchestration(): ChatOrchestrationResult {
     }
     
     const activeAiConfig = currentProfile.aiConfigs.find(c => c.id === currentProfile.activeAiConfigId);
+    
     if (!activeAiConfig) {
       showToast({ message: 'No AI configuration active. Please configure a provider.', type: 'error' });
+      return;
+    }
+
+    // Resolve the global model ID to a provider-specific ID
+    const providerModelId = await resolveModelForProvider(
+      queryClient,
+      activeAiConfig.providerId,
+      currentProfile.selectedModelId
+    );
+
+    if (!providerModelId) {
+      showToast({ message: `Model "${currentProfile.selectedModelId}" is not available on ${activeAiConfig.providerId}. Please update your settings.`, type: 'error' });
       return;
     }
     
@@ -226,12 +240,12 @@ export function useChatOrchestration(): ChatOrchestrationResult {
     try {
       const request: GenerateRequest = {
         providerId: activeAiConfig.providerId,
-        modelId: activeAiConfig.modelId,
-        messages, // Everything is in messages: system, history, prefill
+        modelId: providerModelId, // Use the resolved model ID
+        messages, 
         params: activeAiConfig.params as GenerateRequest['params'],
       };
       
-      console.log('[orchestration] Sending request to:', activeAiConfig.providerId, activeAiConfig.modelId);
+      console.log('[orchestration] Sending request to:', activeAiConfig.providerId, providerModelId);
       
       await streamGenerate(
         request,
@@ -257,14 +271,12 @@ export function useChatOrchestration(): ChatOrchestrationResult {
       }
       
     } catch (error) {
-      // Handle abort
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('[orchestration] Generation aborted');
         currentStreaming.cancel();
         return;
       }
       
-      // Handle other errors
       console.error('[orchestration] Generation failed:', error);
       const message = error instanceof Error ? error.message : 'Generation failed';
       showToast({ message, type: 'error' });
@@ -272,7 +284,7 @@ export function useChatOrchestration(): ChatOrchestrationResult {
     } finally {
       abortControllerRef.current = null;
     }
-  }, []); // No dependencies - we read everything from refs
+  }, [queryClient]);
   
   const cancel = useCallback(() => {
     if (abortControllerRef.current) {
@@ -288,4 +300,3 @@ export function useChatOrchestration(): ChatOrchestrationResult {
     cancel,
   };
 }
-
