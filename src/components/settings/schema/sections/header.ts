@@ -75,7 +75,7 @@ export const headerSection: SectionDefinition = {
           label: 'Horizontal Padding',
           description: 'Inner left/right padding',
           min: 0,
-          max: 32,
+          max: 512,
           step: 1,
           suffix: 'px',
         },
