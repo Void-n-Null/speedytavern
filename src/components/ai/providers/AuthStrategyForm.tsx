@@ -6,6 +6,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { showToast } from '../../ui/toast';
 import { cn } from '../../../lib/utils';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 export type SecretDraftKey = `${string}:${string}:${string}`;
 
@@ -25,7 +26,6 @@ interface AuthStrategyFormProps {
   isSaving: boolean;
   isConnecting: boolean;
   isConnected: boolean;
-  isMobile: boolean;
 }
 
 export function AuthStrategyForm({
@@ -37,8 +37,8 @@ export function AuthStrategyForm({
   isSaving,
   isConnecting,
   isConnected,
-  isMobile,
 }: AuthStrategyFormProps) {
+  const isMobile = useIsMobile();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
   // PKCE OAuth
