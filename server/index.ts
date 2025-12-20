@@ -13,6 +13,7 @@ import { aiProviderRoutes } from './routes/aiProviders';
 import { characterCardRoutes } from './routes/characterCards';
 import { openRouterModelsRoutes } from './routes/openRouterModels';
 import { aiRequestLogsRoutes } from './routes/aiRequestLogs';
+import { aiGenerateRoutes } from './routes/aiGenerate';
 import { prepare } from './db';
 
 const app = new Hono();
@@ -48,6 +49,7 @@ app.route('/api/fonts', fontRoutes);
 app.route('/api/ai/providers', aiProviderRoutes);
 app.route('/api/ai/models/openrouter', openRouterModelsRoutes);
 app.route('/api/ai/logs', aiRequestLogsRoutes);
+app.route('/api/ai/generate', aiGenerateRoutes);
 app.route('/api/character-cards', characterCardRoutes);
 
 // Initialize database and start server

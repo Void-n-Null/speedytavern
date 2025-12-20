@@ -71,7 +71,6 @@ function toWireFormat(nodes: ChatNode[]) {
     speakerSet.add(node.speaker_id);
   }
   const speakerIds = Array.from(speakerSet);
-  const speakerIndex = new Map(speakerIds.map((id, i) => [id, i]));
   
   // Fetch speaker data (check cache first, then DB)
   const speakers: Speaker[] = [];
@@ -101,7 +100,27 @@ function toWireFormat(nodes: ChatNode[]) {
     }
   }
   
+  // IMPORTANT: Also include a user speaker if one doesn't exist in the messages yet.
+  // This allows the user to send their first message before any user messages exist.
+  const hasUserSpeaker = speakers.some(s => s.is_user);
+  if (!hasUserSpeaker) {
+    // Find any user speaker in the database
+    const userRow = prepare<SpeakerRow>('SELECT * FROM speakers WHERE is_user = 1 LIMIT 1').get() as SpeakerRow | null;
+    if (userRow) {
+      const userSpeaker: Speaker = {
+        id: userRow.id,
+        name: userRow.name,
+        avatar_url: userRow.avatar_url ?? undefined,
+        color: userRow.color ?? undefined,
+        is_user: true,
+      };
+      speakers.push(userSpeaker);
+      speakerIds.push(userRow.id);
+    }
+  }
+  
   // Re-sort speakers to match speakerIds order (important for wire format consistency)
+  const speakerIndex = new Map(speakerIds.map((id, i) => [id, i]));
   const speakersMap = new Map(speakers.map(s => [s.id, s]));
   const sortedSpeakers = speakerIds.map(id => speakersMap.get(id) || { id, name: 'Unknown', is_user: false });
   
@@ -118,7 +137,7 @@ function toWireFormat(nodes: ChatNode[]) {
     updated_at: n.updated_at,
   }));
   
-  return { speakerIds, speakers, nodes: wireNodes };
+  return { speakerIds, speakers: sortedSpeakers, nodes: wireNodes };
 }
 
 // ============ Get single chat with all nodes ============
