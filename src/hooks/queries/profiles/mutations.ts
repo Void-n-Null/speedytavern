@@ -167,7 +167,6 @@ export function useCreateAiConfig() {
         name: string;
         providerId: string;
         authStrategyId: string;
-        modelId: string;
         params?: Record<string, unknown>;
         providerConfig?: Record<string, unknown>;
         isDefault?: boolean;
@@ -190,7 +189,6 @@ export function useUpdateAiConfig() {
       configId: string;
       data: {
         name?: string;
-        modelId?: string;
         authStrategyId?: string;
         params?: Record<string, unknown>;
         providerConfig?: Record<string, unknown>;
